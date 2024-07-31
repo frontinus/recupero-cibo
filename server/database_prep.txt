@@ -1,0 +1,7 @@
+user : username, hash, salt
+shops : id,name, indirizzo, numero di telefono, tipo di cucina o categoria di cibo
+Boxes: id, type,size,price,retreive_time_span
+Boxinshop : Box_name, shop_name
+Purchases: username,Box_id
+Contents : id, name
+BoxContent : Box_id, content_name (if many repeat)
