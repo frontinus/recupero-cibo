@@ -132,11 +132,11 @@ function ErrorsAlert(props) {
  *          contains a user-appropriate explaination for why this box is not buyable
  */
 function checkisBoxOk(ID, purchases,is_owned,Retrieve_time_span) {
-  if (purchases.includes(ID) ) {
-    return{
+  if (purchases.includes(ID)) { // Check local cart
+    return {
       result: false,
-      reason: "You already own this box"
-    }
+      reason: "Box is already in your purchase list"
+    };
   }
 
   const Max_time = Retrieve_time_span.split('-')[1];
@@ -154,16 +154,14 @@ function checkisBoxOk(ID, purchases,is_owned,Retrieve_time_span) {
     };
   }
 
-  if (!(purchases.includes(ID)) && is_owned ) {
-    return{
-      result: false,
-      reason: "the box has already been bought by somebody else"}
-  } else {
+  if (is_owned) { // Check database ownership
     return {
-      result: true
+      result: false,
+      reason: "The box has already been bought by somebody else"
     };
-    
   }
+    
+  return { result: true };
 
   // If everything else was ok, return successful
   

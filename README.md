@@ -1,69 +1,97 @@
-[![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-24ddc0f5d75046c5622901739e7c5dd533143b0c8e959d652212380cedb1ea36.svg)](https://classroom.github.com/a/AoyUG5Y1)
-# Exam #12345: "Exam Title"
-## Student: s319824 Abate Francesco 
+# Food Rescue Connect (Surplus Food Web App)
 
-## React Client Application Routes
+## Overview
 
-- Route `/`: header, error handling
-- Route ``: main page
-- Route `login`: login
+Food Rescue Connect is a full-stack web application designed to combat food waste by connecting users with local stores and restaurants offering surplus food bags at discounted prices. Users can browse participating establishments, reserve available food bags, and manage their reservations.
 
-## API Server
+### Key Features
 
--GET `/api/session/current`
-  - request parameters:user (our user object) and request body content
-  - response body content username :our username, purchase: chart of this user (in term of boxes IDs)
--  POST `/api/session`
-  - request parameters, username and password
-  - response body  username and purchases
-- GET `/api/session/current`
-  - request parameters (user object) and request body content 
-  - response body content (username and password)
-- POST `/api/Purchases-modifications`
-  - req.user
-  - req.body.add and rem
--  POST `/api/Contents-modifications`
-  - req.body.Box_id (box da modificare)
-  - req.body.contents (contents da cancellare dalla box)
--  POST `/api/purchase`
-  - req.user
-  - req.body.boxes
-- Delete  `/api/purchase`
-  - req.user
--GET `/api/shops`
-   - res.shops
--GET `/api/purchases`
-   - res.boxes
--GET `/apiboxes/:ShopName`
-   - res.boxes
-   - req.params.ShopMane
+- Browse Establishments: View an alphabetically sorted list of participating stores and restaurants, including their location, contact details, and food category. (Publicly accessible)
 
-## Database Tables
+- View Available Bags: Logged-in users can see available "Surplus Bags" for each establishment, categorized as:
 
-- Table `Purchases` - it's the chart, associates a box and a user
-- Table `Boxcontent` - it associates a content to a box to know what boxes contain
-- Table `Boxes`- box object
-- Table `Users`- user object
-- Table `Shops`- shop object
-- Table `Boxinshop`- asociates a box to a shop
-- Table `Contents`- content object
+  - Surprise Bags: Assorted items at a low price (contents hidden).
 
-## Main React Components
+  - Regular Bags: Specific items and quantities listed.
 
-- `BoxesList` (in `BoxList.js`): List of boxes filtered generally, allows to display info about boxes
-- `ShopsList` (in `ShopList.js`): List of boxes unfiltered, allows to display info about shops
-- `LoginForm` (in `LoginForm.js`): login
-- `PurchasesDetails` (in `Purchases.js`): content handling
-- `Main` (in `App.js`): all the functions for chart, boxes checking etc
-(only _main_ components, minor ones may be skipped)
+- Bag Details: View bag type, size (Small, Medium, Large), price, and pickup time window (only future times are available).
 
-## Screenshot
+- User Authentication: Secure user login and session management using Passport.js with session cookies.
 
-![Screenshot](/screen.png)
+- Shopping Cart: Add desired bags to a personal cart.
 
-## Users Credentials
+  - Fairness Rule: Users can only reserve one bag per establishment per day.
 
-- frontinus, likikokin10 (plus any other requested info)
-- FrancoPollo, likikokin10 (plus any other requested info)
-- Guiglielmo , likikokin10
+- Customize Regular Bags: Remove up to two individual food items from a "Regular Bag" before finalizing the reservation (price remains unchanged).
 
+- Reservation Confirmation: Confirm cart contents to reserve bags. The system checks for real-time availability before confirming. If any bag becomes unavailable, the entire reservation attempt is cancelled, highlighting the unavailable items.
+
+- Reservation Management: View confirmed reservations and delete them, making the bags available again.
+
+- Real-time Availability: Bag availability is updated when reservations are confirmed or deleted.
+
+### Tech Stack
+
+- Frontend: React, React Router, React Bootstrap
+
+- Backend: Node.js, Express.js
+
+- Authentication: Passport.js (Local Strategy with sessions)
+
+- Database: SQLite
+
+- Communication: RESTful API with CORS configuration
+
+### API Summary
+
+The backend provides a RESTful API for managing:
+
+- Authentication: User login (/api/session), logout (/api/session), and session checking (/api/session/current).
+
+- Shops: Fetching all shops (/api/shops).
+
+- Boxes: Fetching available boxes for a specific shop (/api/boxes/:shopId), fetching details for specific box IDs (/api/boxes-by-ids).
+
+- Purchases (Cart/Reservations): Creating (/api/purchase), modifying (adding/removing boxes and items - /api/Purchases-modifications), and deleting (/api/purchase) user reservations.
+
+### Getting Started
+
+Clone the repository:
+
+```bash
+  git clone <your-repo-url>
+  cd <your-project-dir>
+
+
+  Install Server Dependencies:
+
+  cd server
+  npm install
+```
+
+Install Client Dependencies:
+
+```bash
+cd ../client
+npm install
+```
+
+Run the Server:
+(Ensure nodemon is installed globally or use npx nodemon)
+
+```bash
+cd ../server
+nodemon index.js 
+# Or: node index.js
+```
+
+(Server will run on http://localhost:3001)
+
+Run the Client:
+
+```bash
+cd ../client
+npm run dev
+```
+
+(Client will run on http://localhost:5173 or similar)

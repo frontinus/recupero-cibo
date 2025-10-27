@@ -40,9 +40,16 @@ const APICall = async (endpoint, method = "GET", body = undefined, headers = und
 
 const fetchBoxes = async () => await APICall("boxes");
 
-const fetchBoxesByShop = async (Shopid) => await APICall(`boxes/${Shopid}`)
+const fetchBoxesByShop = async (ShopId) => await APICall(`boxes/${ShopId}`)
 
 const fetchShops = async () => await APICall("shops");
+
+const fetchBoxesByIds = async (ids) => await APICall(
+  "boxes-by-ids",
+  "POST",
+  JSON.stringify({ids}),
+  { "Content-Type": "application/json" }
+);
 
 
 const deletePurchases = async () => await APICall(
@@ -61,10 +68,11 @@ const createPurchase = async (boxes) => await APICall(
   false
 );
 
-const editPurchase = async (add, rem, Boxes_id) => await APICall(
+const editPurchase = async (add, rem, Boxes_id, removedItems) => await APICall(
   "Purchases-modifications",
   "POST",
-  JSON.stringify({add, rem, Boxes_id}),
+  // Include removedItems in the JSON body
+  JSON.stringify({ add, rem, Boxes_id, removedItems }),
   { "Content-Type": "application/json" },
   false
 );
@@ -114,7 +122,8 @@ const API = {
   logout,
   fetchCurrentUser,
   fetchShops,
-  editContents
+  editContents,
+  fetchBoxesByIds
 };
 
 

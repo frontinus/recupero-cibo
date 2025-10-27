@@ -28,210 +28,257 @@ function App() {
 function Main() {
   const navigate = useNavigate();
   
-  /** The list of shops */
   const [shops, setShops] = useState([]);
-  /** A list of errors */
   const [errors, setErrors] = useState([]);
-
-  const [boxes, setBoxes] = useState([])
-  /**
-   * Information about the currently logged in user.
-   * This is undefined when no user is logged in
-   */
   const [user, setUser] = useState(undefined);
-
-  const [contents, setContents] = useState([]);
-
-
   const [savedBoxesList, setSavedBoxesList] = useState(undefined);
-
-  /** Flags initial loading of the app */
   const [loading, setLoading] = useState(true);
-
   const [waiting, setWaiting] = useState(false);
-  
-  useEffect(() => {
-    Promise.all([API.fetchBoxes(),API.fetchShops()])
-      .then(res => {
-        const b = res[0]; // Courses
-        const s = res[1];
-        setBoxes(
-          b.map(box => new Box(
-            box.ID,
-            box.Type,
-            box.Size,
-            box.Price,
-            box.Retrieve_time_span,
-            box.Is_owned,
-            box.Contents
-          ))
-        );
 
+  // --- NEW STATE ---
+  // Track removed items: { boxId1: ['itemA', 'itemB'], boxId2: ['itemC'] }
+  const [removedItemsByBox, setRemovedItemsByBox] = useState({});
+  // Track the original contents of purchased boxes when they were loaded
+  const [originalBoxContents, setOriginalBoxContents] = useState({});
+
+  useEffect(() => {
+    setLoading(true);
+    const fetchShopsPromise = API.fetchShops()
+      .then(s => {
         setShops(
           s.map(shop => new Shop(
-            shop.Shopid,
-            shop.ShopName,
-            shop.Adress,
-            shop.Phone_nb,
-            shop.Food_type,
-            shop.Boxes
-          ))
-          .sort((a, b) => a.ShopName.localeCompare(b.ShopName))
+            shop.Shopid, shop.ShopName, shop.Adress,
+            shop.Phone_nb, shop.Food_type, shop.Boxes
+          )).sort((a, b) => a.ShopName.localeCompare(b.ShopName))
         );
-
-        
-        // Loading done
-        setLoading(false);
-      })
-      .catch(err =>{console.error('Error fetching data:', err);
-  setErrors(err);});
-
-      // Check if the user was already logged in
-      API.fetchCurrentUser()
-        .then(user => {
-          setUser(user);
-          setSavedBoxesList(user.purchases);
-        })
-        .catch(err => {
-          // Remove eventual 401 Unauthorized errors from the list, those are expected
-          setErrors(err.filter(e => e !== "Must be authenticated to make this request!"));
-        });
-  }, []);
-  
-  
-
-  const refetchDynamicContent = () => {
+      });
     
-    const p2 = API.fetchCurrentUser()
-      .then(user => {
-        setUser(user);
-        setSavedBoxesList(user.purchases);
+    const fetchUserPromise = API.fetchCurrentUser()
+      .then(async (currentUser) => { // Make async to fetch box details
+        setUser(currentUser);
+        setSavedBoxesList(currentUser.purchases);
+        
+        // --- FETCH INITIAL BOX DETAILS FOR REMOVAL TRACKING ---
+        if (currentUser.purchases && currentUser.purchases.length > 0) {
+          try {
+            const boxesDetails = await API.fetchBoxesByIds(currentUser.purchases);
+            const initialContents = {};
+            boxesDetails.forEach(box => {
+              // Store original contents (as objects with name/quantity)
+              initialContents[box.ID] = box.Contents || [];
+            });
+            setOriginalBoxContents(initialContents);
+          } catch (detailsError) {
+             console.error("Error fetching initial box details for user:", detailsError);
+             // Decide how to handle this - maybe show an error?
+             // For now, we'll proceed without original contents, meaning revert won't work perfectly.
+             setOriginalBoxContents({});
+          }
+        } else {
+           setOriginalBoxContents({}); // No purchases, empty object
+        }
+        setRemovedItemsByBox({}); // Reset removed items on login/reload
       })
       .catch(err => {
-        // Remove eventual 401 Unauthorized errors from the list, those are expected
-        setErrors(err.filter(e => e !== "Not authenticated"));
+        if (err.includes && !err.includes("Must be authenticated to make this request!")) {
+          throw err;
+        }
+        setUser(undefined); // Ensure user is undefined if fetch fails
+        setSavedBoxesList(undefined);
+        setRemovedItemsByBox({});
+        setOriginalBoxContents({});
+        return; 
       });
 
-    return Promise.all([p2]);
-  }
+    Promise.allSettled([fetchShopsPromise, fetchUserPromise])
+      .then(results => {
+        results.forEach(result => {
+          if (result.status === 'rejected') {
+            console.error('Error during initial load:', result.reason);
+            setErrors(prevErrors => [...prevErrors, result.reason.toString()]);
+          }
+        });
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, []); // Run only on mount
 
+  // This function might need updating if you fetch box details again elsewhere
+  const refetchDynamicContent = async () => { // Make async
+    try {
+      const currentUser = await API.fetchCurrentUser();
+      setUser(currentUser);
+      setSavedBoxesList(currentUser.purchases);
+       // --- RE-FETCH INITIAL BOX DETAILS ---
+       if (currentUser.purchases && currentUser.purchases.length > 0) {
+         const boxesDetails = await API.fetchBoxesByIds(currentUser.purchases);
+         const initialContents = {};
+         boxesDetails.forEach(box => {
+           initialContents[box.ID] = box.Contents || [];
+         });
+         setOriginalBoxContents(initialContents);
+       } else {
+         setOriginalBoxContents({});
+       }
+       setRemovedItemsByBox({}); // Reset removed items after save/refetch
+    } catch (err) {
+      setErrors(err.filter(e => e !== "Not authenticated"));
+      // Clear user data if refetch fails (e.g., session expired)
+      setUser(undefined);
+      setSavedBoxesList(undefined);
+      setRemovedItemsByBox({});
+      setOriginalBoxContents({});
+    }
+  };
  
   const login = (username, password, onFinish) => {
     API.login(username, password)
       .then(user => {
         setErrors([]);
-        refetchDynamicContent()
+        refetchDynamicContent() // refetch already handles setting user and boxes
           .then(() => navigate("/"));
       })
       .catch(err => setErrors(err))
       .finally(() => onFinish?.());
   };
 
-  /**
-   * Perform the logout
-   */
   const logout = () => {
     API.logout()
       .then(() => {
         setUser(undefined);
         setSavedBoxesList(undefined);
+        setRemovedItemsByBox({}); // Clear removed items on logout
+        setOriginalBoxContents({}); // Clear original contents
       })
       .catch(err => {
-        // Remove eventual 401 Unauthorized errors from the list
         setErrors(err.filter(e => e !== "Must be authenticated to make this request"));
       });
   };
 
-   const createPurchases = () => {
+  // In App.jsx
+const handleItemRemoval = (boxId, itemName) => {
+  setRemovedItemsByBox(prev => {
+    const currentRemoved = prev[boxId] || [];
+    // Only add if not already present and count < 2
+    if (currentRemoved.length < 2 && !currentRemoved.includes(itemName)) {
+      const newState = {
+        ...prev,
+        [boxId]: [...currentRemoved, itemName]
+      };
+      // --- ADD LOG INSIDE SETTER ---
+      console.log(`Client: Updated removedItemsByBox for box ${boxId}:`, newState[boxId]); 
+      return newState;
+    }
+    console.log(`Client: Did NOT update removedItemsByBox for box ${boxId} (limit reached or item already removed).`);
+    return prev; // No change if limit reached or already removed
+  });
+  // Also mark as edited
+  markPurchasesAsEdited();
+};
+
+  // --- NEW: Handles adding items back locally ---
+  // Called by PurchasesDetails if you implement an "undo removal" button
+  const handleItemReAddition = (boxId, itemName) => {
+    setRemovedItemsByBox(prev => {
+       const currentRemoved = prev[boxId] || [];
+       const updatedRemoved = currentRemoved.filter(item => item !== itemName);
+       return {
+         ...prev,
+         [boxId]: updatedRemoved
+       };
+    });
+    // We might need more complex logic to determine if still edited
+     markPurchasesAsEdited(); // For simplicity, mark as edited
+  };
+
+
+  // --- NEW: Function needed by PurchasesDetails ---
+  const markPurchasesAsEdited = () => {
+    setUser(user => ({...user, purchasesEdited: true}));
+  };
+
+  const createPurchase = () => {
     setUser(user => ({...user, purchases: [], purchasesEdited: true}));
+    setRemovedItemsByBox({}); // Clear removed items when creating new
   };
 
   const deletePurchases = () => {
     setWaiting(true);
+    const p = (user.purchases) ? API.deletePurchases() : Promise.resolve();
     
-    const p = (user.purchases) ?
-      API.deletePurchases()
-    :
-      Promise.resolve();
-    
-    return p.then(() => refetchDynamicContent())
+    return p.then(() => refetchDynamicContent()) // Refetch will clear state
       .catch(err => setErrors(err))
       .finally(() => setWaiting(false));
   };
 
-
   const addBoxtoPurchases = boxCode => {
     setUser(user => {
       const purchaseLocal = [...user.purchases, boxCode];
-      const purchaseEdited = checkPurchasesModified(savedBoxesList, purchaseLocal);
+      // Check against saved list AND check if removed items need clearing for this box
+      const purchaseEdited = checkPurchasesModified(savedBoxesList, purchaseLocal) || removedItemsByBox[boxCode]?.length > 0;
+      
+      // Clear any removed items state for a box being added back (if applicable)
+      const { [boxCode]: _, ...remainingRemoved } = removedItemsByBox;
+      setRemovedItemsByBox(remainingRemoved);
 
-      const updatedBoxes = boxes.map(box =>
-      box.ID === boxCode ? { ...box, Is_owned: true } : box
-    );
-
-    // Update the state with the new boxes
-    setBoxes(updatedBoxes);
-    
       return {...user, purchases: purchaseLocal, purchasesEdited :purchaseEdited};
     });
   };
 
-
-  /**
-
-   */
   const removeBoxFromPurchases = BoxCode => {
     setUser(user => {
       const purchaseLocal = user.purchases.filter(p => p !== BoxCode);
       const purchaseEdited = checkPurchasesModified(savedBoxesList, purchaseLocal);
 
-      const updatedBoxes = boxes.map(box =>
-      box.ID === BoxCode ? { ...box, Is_owned: false } : box
-    );
+      // Also clear any removed items state for the box being removed
+      const { [BoxCode]: _, ...remainingRemoved } = removedItemsByBox;
+      setRemovedItemsByBox(remainingRemoved);
 
-    
-
-    // Update the state with the new boxes
-    setBoxes(updatedBoxes);
-
-      return {...user, purchases: purchaseLocal,purchasesEdited: purchaseEdited};
+      return {...user, purchases: purchaseLocal, purchasesEdited: purchaseEdited};
     });
   };
 
-
+  // --- MODIFIED: Needs to send removedItemsByBox ---
   const savePurchaseChanges = () => {
     setWaiting(true);
     
-    const create = () => API.createPurchases(user.purchases);
-    const edit = () => {
-      // Find diff between saved and current study plans
-      const add = user.purchases.filter(c => !savedBoxesList.includes(c));
-      const rem = savedBoxesList.filter(c => !user.purchases.includes(c));
-      const Boxes_id = [...add, ...rem]
-      return API.editPurchase(add, rem, Boxes_id);
-    };
+    // Determine boxes added and removed
+    const add = user.purchases.filter(c => !(savedBoxesList || []).includes(c));
+    const rem = (savedBoxesList || []).filter(c => !user.purchases.includes(c));
+    const boxesToToggleOwnership = [...add, ...rem]; // IDs for ownership change
 
-    const APICall = (savedBoxesList.length === null || savedBoxesList.length === undefined) ?
-      create : edit;
+    // Prepare removed items data ONLY for boxes currently in the purchase list
+    const finalRemovedItems = {};
+    for (const boxId of user.purchases) {
+        if (removedItemsByBox[boxId] && removedItemsByBox[boxId].length > 0) {
+            finalRemovedItems[boxId] = removedItemsByBox[boxId];
+        }
+    }
 
-    return APICall()
-      .then(() => refetchDynamicContent())
-      .catch(err => setErrors(err))
+    // --- API Call Needs Update ---
+    // API.editPurchase needs to be modified (or a new endpoint created)
+    // to accept the finalRemovedItems object.
+    // Example: API.editPurchase(add, rem, boxesToToggleOwnership, finalRemovedItems)
+    console.log("Client: Sending finalRemovedItems:", JSON.stringify(finalRemovedItems, null, 2));    
+    
+    // Assuming API.editPurchase is updated to take the 4th argument:
+    return API.editPurchase(add, rem, boxesToToggleOwnership, finalRemovedItems)
+      .then(() => refetchDynamicContent()) // Refetch clears local state
+      .catch(err => {
+          setErrors(err);
+          // Optional: Revert local changes on error? Or let user retry?
+          // For now, just show error.
+       })
       .finally(() => setWaiting(false));
   };
-  
-
-  const saveContentsChanges = (Box_id,Contents) => {
+ 
+  // This might not be needed if savePurchaseChanges handles content now
+  const saveContentsChanges = (Box_id, Contents) => {
+    console.warn("saveContentsChanges might be deprecated. Content changes should be saved via savePurchaseChanges.");
+    // ... (keep existing logic for now if needed elsewhere) ...
     setWaiting(true);
-    
-    const edit = () => {
-      
-      return API.editContents(Box_id, Contents);
-    };
-
-    const APICall = edit;
-
-    return APICall()
+    return API.editContents(Box_id, Contents)
       .then(() => refetchDynamicContent())
       .catch(err => setErrors(err))
       .finally(() => setWaiting(false));
@@ -239,26 +286,36 @@ function Main() {
 
   const discardPurchasesChanges = () => {
     setUser(user => ({...user, purchases: savedBoxesList, purchasesEdited: false}));
+    setRemovedItemsByBox({}); // Discard removed items too
   };
 
+  const getRemovedItemsForBox = (boxId) => {
+    return removedItemsByBox[boxId] || [];
+};
+
+  // --- Updated Context Value ---
   const purchasesActivities = {
-    createPurchases,
+    createPurchase,
     deletePurchases,
     addBoxtoPurchases,
     removeBoxFromPurchases,
     savePurchaseChanges,
     discardPurchasesChanges,
-    saveContentsChanges,
-    
+    saveContentsChanges, // Keep or remove based on whether savePurchaseChanges handles it
+    markPurchasesAsEdited, // Add the new function
+    handleItemRemoval,    // Add the handler for removing items locally
+    handleItemReAddition, // Add the handler for re-adding items locally
+    getRemovedItemsForBox
   };
-  
+ 
+  // The Routes and HomePage structure remain the same
   return (
     <Routes>
       <Route path="/" element={<Header user={user} logoutCbk={logout} errors={errors} clearErrors={() => setErrors([])}/>}>
-        <Route path="" element={loading ? <LoadingSpinner/> : <HomePage contents={contents} boxes = {boxes} user={user} shops={shops}  purchaseActivities={purchasesActivities} errorAlertActive={errors.length > 0} waiting={waiting}/>}/>
+        {/* Pass originalBoxContents and removedItemsByBox down if needed directly, or rely on context functions */}
+        <Route path="" element={loading ? <LoadingSpinner/> : <HomePage user={user} shops={shops} purchaseActivities={purchasesActivities} errorAlertActive={errors.length > 0} waiting={waiting} />} />
         <Route path="login" element={loading ? <LoadingSpinner/> : <LoginForm loginCbk={login} errorAlertActive={errors.length > 0}/>}/>
       </Route>
-
       <Route path="*" element={<NotFoundPage/>}/>
     </Routes>
   );
@@ -275,38 +332,36 @@ function Main() {
  */
 function HomePage(props) {
   return (
-<contentContext.Provider value ={props.contents}>
-  <boxesContext.Provider value={props.boxes}>
+    // Consider removing boxesContext and contentContext if no longer used globally
+    // <contentContext.Provider value={[]}> {/* Empty if not used */}
+    // <boxesContext.Provider value={[]}> {/* Empty if not used */}
     <shopsContext.Provider value={props.shops}>
       <userContext.Provider value={props.user}>
         <purchasesActivitiesContext.Provider value={props.purchaseActivities}>
           <waitingContext.Provider value={props.waiting}>
-            <Container fluid style={{"paddingLeft": "25rem", "paddingRight": "2rem", "paddingBottom": "1rem", "marginTop": props.errorAlertActive ? "2rem" : "6rem"}}>
-              <Row className="justify-content-center">
-                <Col lg style={{"borderRight": props.user && "1px solid #dfdfdf", "maxWidth": "70%"}}>
+            <Container fluid style={{ paddingLeft: "2rem", paddingRight: "2rem", paddingBottom: "1rem", marginTop: props.errorAlertActive ? "2rem" : "6rem" }}> {/* Adjusted padding */}
+              <Row className="justify-content-center gx-5"> {/* Added gutter spacing */}
+                {/* Shops List Column */}
+                <Col lg={7} style={{ borderRight: props.user ? "1px solid #dfdfdf" : "none", paddingRight: props.user ? '2rem' : '0' }}>
                    <ShopsList />
                 </Col>
                
-                { 
-                  props.user ?(
-                     
-                  <Col lg>
+                {/* Purchases Column (only if logged in) */}
+                {props.user && (
+                  <Col lg={5} style={{ paddingLeft: '2rem'}}>
                     <Purchases />
                   </Col>
-                  ): null
-                }
+                )}
               </Row>
             </Container>
           </waitingContext.Provider>
         </purchasesActivitiesContext.Provider>
       </userContext.Provider>
     </shopsContext.Provider>
-  </boxesContext.Provider>
-</contentContext.Provider >
-);
-
+    // </boxesContext.Provider>
+    // </contentContext.Provider>
+  );
 }
-
 /**
  * Header of the page, containing the navbar and, potentially, the error alert
  * 

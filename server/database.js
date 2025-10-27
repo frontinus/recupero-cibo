@@ -33,6 +33,22 @@ const dbGetAsync = (db, sql, params = []) => new Promise((resolve, reject) => {
   });
 });
 
+
+// Helper to begin a transaction
+const dbBeginTransaction = (db) => new Promise((resolve, reject) => {
+  db.run("BEGIN TRANSACTION", err => err ? reject(err) : resolve());
+});
+
+// Helper to commit
+const dbCommit = (db) => new Promise((resolve, reject) => {
+  db.run("COMMIT", err => err ? reject(err) : resolve());
+});
+
+// Helper to roll back
+const dbRollback = (db) => new Promise((resolve, reject) => {
+  db.run("ROLLBACK", err => err ? reject(err) : resolve());
+});
+
 /**
  * Interface to the sqlite database for the application
  *
@@ -58,22 +74,27 @@ function Database(dbname) {
   }
 
   this.getBoxes = async () => {
-    try{
-      const boxes = (await dbAllAsync(this.db, "select * from Boxes")).map(c => ({...c, Contents: []}))
-      const contents = await dbAllAsync(this.db,"select * from Boxcontent");
-     
-      for (const {Box_id, content_name} of contents) {
-      // Append incompatibility to the correct course
+    try {
+      const boxes = (await dbAllAsync(this.db, "SELECT * FROM Boxes"))
+                      .map(c => ({...c, Contents: []}));
+                      
+      // Select quantity here too
+      const contents = await dbAllAsync(this.db, "SELECT Box_id, content_name, quantity FROM Boxcontent");
+      
+      for (const {Box_id, content_name, quantity} of contents) {
         const main = boxes.find(c => c.ID === Box_id);
-        if (!main) {throw new Error("DB inconsistent: Shop not found");}
-
-        main.Contents.push(content_name);}
-
-    return boxes;
-  }catch (error) {
-    console.error("Error in getBoxes:", error);
-    throw error; // Rethrow the error to propagate it up the call stack
-  }
+        if (!main) { 
+            // More specific error message
+            throw new Error(`DB inconsistent: Boxcontent references Box_id ${Box_id} which does not exist in Boxes table.`);
+        }
+        // Use 'name' property to be consistent
+        main.Contents.push({ name: content_name, quantity: quantity }); 
+      }
+      return boxes;
+    } catch (error) {
+      console.error("Error in getBoxes:", error);
+      throw error;
+    }
   };
 
   this.getShops = async () => {
@@ -81,9 +102,9 @@ function Database(dbname) {
     const shops = (await dbAllAsync(this.db, "select * from Shops")).map(c => ({...c, Boxes: []}))
     const sellers = await dbAllAsync(this.db, "select * from Boxinshop");
 
-    for (const {Box_id, Shop_name} of sellers) {
+    for (const {Box_id, Shop_id} of sellers) {
       // Append incompatibility to the correct course
-      const main = shops.find(c => c.ShopName === Shop_name);
+      const main = shops.find(c => c.Shopid === Shop_id);
       if (!main) {throw new Error("DB inconsistent: Shop not found");}
 
 
@@ -124,11 +145,11 @@ function Database(dbname) {
     )).map(c => c.Box_id);
   };
 
-  this.getBoxesbyName = async ShopName => {
+  this.getBoxesbyId = async ShopId => {
     return (await dbAllAsync(
       this.db,
-      "select Box_id from Boxinshop where Shop_name = ?",
-      [ShopName]
+      "select Box_id from Boxinshop where Shop_id = ?",
+      [ShopId]
     )).map(c => c.Box_id);
   };
 
@@ -203,22 +224,100 @@ function Database(dbname) {
     return Promise.all([cRem])
   }
 
-  this.editPurchase = (ba,br, userId) => {
+  const dbBeginTransaction = (db) => new Promise((resolve, reject) => {
+    db.run("BEGIN TRANSACTION", err => err ? reject(err) : resolve());
+  });
+  const dbCommit = (db) => new Promise((resolve, reject) => {
+    db.run("COMMIT", err => err ? reject(err) : resolve());
+  });
+  const dbRollback = (db) => new Promise((resolve, reject) => {
+    db.run("ROLLBACK", err => err ? reject(err) : resolve());
+  });
 
-    let pAdd;
-    
-    if (ba.length > 0) {
-      const sql = "insert into Purchases (Username, Box_id) values " + ba
-        .map((c, i, a) => "(?, ?)" + (i < a.length - 1 ? "," : ""))
-        .reduce((prev, cur) => prev + cur);
-      const params = ba.flatMap(c => [userId, c]);
-      pAdd = dbRunAsync(this.db, sql, params);
-    } else
-      pAdd = Promise.resolve();
+  // In database.js
 
-    const pRem = br.map(c => dbRunAsync(this.db, "delete from Purchases where (Username = ? and Box_id = ?)", [userId, c]));
-    return Promise.all([pAdd,pRem].flat());
-  };
+this.editPurchase = async (boxesToAdd, boxesToRemove, userId, removedItems) => {
+  console.log("--- editPurchase called ---");
+  console.log("User:", userId);
+  console.log("Boxes to Add:", boxesToAdd);
+  console.log("Boxes to Remove:", boxesToRemove);
+  console.log("Items to Remove:", JSON.stringify(removedItems, null, 2)); // Log the critical object
+  await dbBeginTransaction(this.db); //
+
+  try {
+    // --- 1. Check Availability ---
+    if (boxesToAdd.length > 0) { //
+      const placeholders = boxesToAdd.map(() => '?').join(',');
+      const sqlCheck = `SELECT ID, Is_owned FROM Boxes WHERE ID IN (${placeholders})`; //
+      const unavailableBoxes = (await dbAllAsync(this.db, sqlCheck, boxesToAdd))
+                                  .filter(box => box.Is_owned); //
+      if (unavailableBoxes.length > 0) { //
+        throw new Error(`Box ${unavailableBoxes[0].ID} is no longer available.`); //
+      }
+    }
+
+    // --- 2. Add Purchases ---
+    let pAdd = Promise.resolve();
+    if (boxesToAdd.length > 0) { //
+      const sqlAdd = "INSERT INTO Purchases (Username, Box_id) VALUES " + boxesToAdd
+        .map(() => "(?, ?)").join(", "); //
+      const paramsAdd = boxesToAdd.flatMap(c => [userId, c]); //
+      pAdd = dbRunAsync(this.db, sqlAdd, paramsAdd); //
+    }
+
+    // --- 3. Remove Purchases ---
+    const pRem = boxesToRemove.map(boxId => dbRunAsync( //
+      this.db,
+      "DELETE FROM Purchases WHERE (Username = ? AND Box_id = ?)", //
+      [userId, boxId]
+    ));
+
+    // --- 4. Toggle Ownership ---
+    const allBoxesToToggle = [...boxesToAdd, ...boxesToRemove]; //
+    const pToggle = allBoxesToToggle.map(boxId => dbRunAsync( //
+      this.db,
+      "UPDATE Boxes SET Is_owned = NOT Is_owned WHERE ID = ?", //
+      [boxId]
+    ));
+
+    // --- 5. Remove Specific Items ---
+    const pRemoveItems = []; //
+    for (const boxIdStr in removedItems) { //
+      const boxId = parseInt(boxIdStr, 10); //
+      const itemsToRemove = removedItems[boxIdStr]; //
+
+      if (itemsToRemove && itemsToRemove.length > 0) { //
+        itemsToRemove.forEach(itemName => { //
+          console.log(` ---> Preparing DELETE for Box ID: ${boxId}, Item: '${itemName}'`);
+          // --- THIS IS THE CRITICAL PART ---
+          pRemoveItems.push(dbRunAsync( //
+            this.db,
+            "DELETE FROM Boxcontent WHERE Box_id = ? AND content_name = ?", //
+            [boxId, itemName] // Make sure boxId and itemName are correct
+          ).catch(e => { // ADD CATCH HERE
+     console.error(`ERROR deleting item '${itemName}' from box ${boxId}:`, e);
+     throw e; // Re-throw to ensure transaction rolls back
+  }));
+        });
+      }
+    }
+
+    // --- 6. Wait ---
+    await Promise.all([pAdd, ...pRem, ...pToggle, ...pRemoveItems]); //
+
+    // --- 7. Commit ---
+    console.log("--- Operations successful, attempting COMMIT ---");
+    await dbCommit(this.db); //
+    console.log("--- COMMIT successful ---");
+
+  } catch (err) {
+    // --- 8. Rollback ---
+    console.error("--- Error occurred, attempting ROLLBACK ---", err);
+    await dbRollback(this.db); //
+    console.log("--- ROLLBACK successful ---");
+    throw err; //
+  }
+};
 
   /**
    * Authenticate a user from their username and password
@@ -329,5 +428,115 @@ function Database(dbname) {
     };
   }
   }
+
+// Add this new function to database.js
+this.getBoxesByShopId = async (shopId) => {
+    // 1. Get the box IDs for the shop
+    const boxIds = (await dbAllAsync(
+      this.db,
+      "SELECT Box_id FROM Boxinshop WHERE Shop_id = ?", // Uses the correct Shop_id
+      [shopId]
+    )).map(c => c.Box_id);
+
+    if (boxIds.length === 0) {
+      return []; // No boxes for this shop
+    }
+
+    // 2. Get the full details for those boxes
+    const placeholders = boxIds.map(() => '?').join(',');
+    const boxes = (await dbAllAsync(
+      this.db,
+      `SELECT * FROM Boxes WHERE ID IN (${placeholders})`,
+      boxIds
+    )).map(c => ({...c, Contents: []})); // Prepare for contents
+
+    // 3. Get the contents for those boxes
+    const contents = await dbAllAsync(
+      this.db,
+      `SELECT * FROM Boxcontent WHERE Box_id IN (${placeholders})`,
+      boxIds
+    );
+
+    // 4. Combine boxes with their contents
+    for (const {Box_id, content_name, quantity} of contents) {
+      const main = boxes.find(c => c.ID === Box_id);
+      if (main) {
+        main.Contents.push({name: content_name, quantity: quantity});
+      }
+    }
+
+    return boxes;
+  };
+
+
+  // Add this new function to database.js
+  this.getBoxesByName = async (shopName) => {
+    // 1. Get box IDs using Shop_name
+    const boxIds = (await dbAllAsync(
+      this.db,
+      "SELECT Box_id FROM Boxinshop WHERE Shop_name = ?", // Uses Shop_name
+      [shopName]
+    )).map(c => c.Box_id);
+
+    if (boxIds.length === 0) return [];
+
+    // 2. Get box details
+    const placeholders = boxIds.map(() => '?').join(',');
+    const boxes = (await dbAllAsync(
+      this.db,
+      `SELECT * FROM Boxes WHERE ID IN (${placeholders})`,
+      boxIds
+    )).map(c => ({...c, Contents: []}));
+
+    // 3. Get contents including quantity
+    const contents = await dbAllAsync(
+      this.db,
+      `SELECT Box_id, content_name, quantity FROM Boxcontent WHERE Box_id IN (${placeholders})`, // Select quantity
+      boxIds
+    );
+
+    // 4. Combine using the correct object structure
+    for (const {Box_id, content_name, quantity} of contents) {
+      const main = boxes.find(c => c.ID === Box_id);
+      if (main) {
+        // Use 'name' property
+        main.Contents.push({ name: content_name, quantity: quantity }); 
+      }
+    }
+    return boxes;
+  };
+
+  // Add this function to database.js
+  this.getBoxesByIds = async (ids) => {
+    if (!ids || ids.length === 0) {
+      return [];
+    }
+
+    // 1. Get the full details for the requested box IDs
+    const placeholders = ids.map(() => '?').join(',');
+    const boxes = (await dbAllAsync(
+      this.db,
+      `SELECT * FROM Boxes WHERE ID IN (${placeholders})`,
+      ids
+    )).map(c => ({...c, Contents: []}));
+
+    // 2. Get the contents for those boxes
+    const contents = await dbAllAsync(
+      this.db,
+      `SELECT * FROM Boxcontent WHERE Box_id IN (${placeholders})`,
+      ids
+    );
+
+    // 3. Combine boxes with their contents
+    for (const {Box_id, content_name, quantity} of contents) {
+      const main = boxes.find(c => c.ID === Box_id);
+      if (main) {
+        main.Contents.push({name:content_name, quantity: quantity});
+      }
+    }
+
+    return boxes;
+  };
+
 }
 module.exports = Database;

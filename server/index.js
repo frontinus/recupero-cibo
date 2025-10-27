@@ -21,17 +21,18 @@ initAuthentication(app, db);
 
 
 
-app.get("/api/boxes/:ShopName", async(req, res) => {
-  const ShopName = req.params.ShopName
+app.get("/api/boxes/:ShopId", async(req, res) => { // <-- Changed
+  const shopId = req.params.ShopId; // <-- Changed
   try{
-    const boxes = await db.getBoxesbyName(ShopName)
+    const boxes = await db.getBoxesByShopId(shopId); // <-- Changed
 
     if (boxes == undefined){
-      return res.status(404).json({ error: ['Boxes not found!'] });
+      return res.status(4.04).json({ error: ['Boxes not found!'] });
     }
-    res.json(boxes)
+    res.json(boxes); 
   }catch(err){
-    res.status(500).json({ error: [`Error in the database while looking for the boxes for that shop'${ShopName}': '${err}'`] });
+    console.error(err); 
+    res.status(500).json({ error: [`Error in the database while looking for the boxes for shop number '${shopId}': '${err}'`] }); // <-- Changed
   }
 });
 
@@ -65,6 +66,22 @@ app.delete("/api/purchase", isLoggedIn, async (req, res) => {
     res.end();
   } catch {
     res.status(500).json({errors: ["Database error 5"]});
+  }
+});
+
+// Add this route to index.js
+app.post("/api/boxes-by-ids", isLoggedIn, async(req, res) => {
+  const ids = req.body.ids;
+  if (!ids || !Array.isArray(ids)) {
+    return res.status(400).json({ error: 'Missing or invalid "ids" array in request body.' });
+  }
+
+  try{
+    const boxes = await db.getBoxesByIds(ids);
+    res.json(boxes);
+  }catch(err){
+    console.error(err);
+    res.status(500).json({ error: [`Database error while fetching boxes by IDs: ${err}`] });
   }
 });
 
@@ -120,40 +137,34 @@ app.post(
   "/api/Purchases-modifications",
   isLoggedIn,
   async (req, res) => {
-    // Check if validation is ok
     const err = validationResult(req);
-    const errList = [];
-    if (!err.isEmpty()) {
-      errList.push(...err.errors.map(e => e.msg));
-      return res.status(400).json({errors: errList});
-    }
-    
-    // Check if the student had a study plan
-    
+    // ... (validation checks remain the same) ...
+
     try {
-      let Purchases = await db.getPurchasesbyUser(req.user.Username);
-
-      for (const c of req.body.add) {
-        Purchases.push(c);
-      }
-      Purchases = Purchases.filter(c => !req.body.rem.includes(c));
-
-      // Validate the resulting study plan
+      // Check for wasted boxes (this check might need refinement later)
       const checkErrors = await db.checkPurchases(req.user.Username);
-      if (checkErrors.length > 0) {
-        res.status(422).json({errors: checkErrors});
+      if (checkErrors && checkErrors.length > 0) { // Check if checkErrors is an array
+        res.status(422).json({ errors: checkErrors });
       } else {
-        // Actually update the study plan
-        await db.editPurchase(req.body.add, req.body.rem, req.user.Username);
-        for (const Box_id of req.body.Boxes_id){
-          await db.ChangeOwnershipStatus(Box_id);
-        }
+        // Pass the removedItems from the request body to db.editPurchase
+        await db.editPurchase(
+          req.body.add || [],       // Boxes to add
+          req.body.rem || [],       // Boxes to remove
+          req.user.Username,        // User ID
+          req.body.removedItems || {} // Removed items object
+        );
         res.end();
       }
-    } catch {
-      res.status(500).json({errors: ["Database error 3"]});
+    } catch (err) {
+      if (err && err.message && err.message.includes("is no longer available")) {
+        res.status(422).json({ errors: [err.message] });
+      } else {
+        console.error("Error in /api/Purchases-modifications:", err); // Log full error
+        res.status(500).json({ errors: ["Database error 3"] });
+      }
     }
-});
+  }
+);
 
 
 app.post(

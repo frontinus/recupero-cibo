@@ -89,29 +89,51 @@ function BoxItem(props) {
 }
 
 
+// Replace this function in BoxesList.jsx
+
 function ContextualButton(props) {
   const user = useContext(userContext);
-  const boxes = useContext(boxesContext);
   const purchasesa = useContext(purchasesActivitiesContext);
   const waiting = useContext(waitingContext);
 
-  let inner;
-  let variant;
-  let onClick;
-  // Find out if this must be a add or a remove button.
-  // Note: this component gets rendered only if a study plan exists
-  if (user.purchases?.includes(props.box.ID) ) {
-    inner = <i className="bi bi-dash"/>;
-    variant = "danger"
-    onClick = () => purchasesa.removeBoxFromPurchases(props.box.ID);
+  // Check if the box is already in the user's purchase list
+  if (user.purchases?.includes(props.box.ID)) {
+    
+    // --- This is a REMOVE button ---
+    const inner = <i className="bi bi-dash"/>;
+    const variant = "danger";
+    const onClick = () => purchasesa.removeBoxFromPurchases(props.box.ID);
+    
+    // It should only be disabled if 'waiting' is true.
+    // The 'constraints.result' (which is false) should be ignored.
+    return (
+      <SmallRoundButton 
+        inner={inner} 
+        variant={variant} 
+        tooltip={"Remove from purchases"} // New, clearer tooltip
+        disabled={waiting} 
+        onClick={onClick}
+      />
+    );
   
-  }else {
-    inner = <i className="bi bi-plus"/>;
-    variant = "success";
-    onClick = () => purchasesa.addBoxtoPurchases(props.box.ID);
-  }
+  } else {
 
-  return <SmallRoundButton inner={inner} variant={variant} tooltip={props.constraints.reason || ""} disabled={!props.constraints.result || waiting} onClick={onClick}/>;
+    // --- This is an ADD button ---
+    const inner = <i className="bi bi-plus"/>;
+    const variant = "success";
+    const onClick = () => purchasesa.addBoxtoPurchases(props.box.ID);
+
+    // It *should* be disabled if constraints fail or we are waiting.
+    return (
+      <SmallRoundButton 
+        inner={inner} 
+        variant={variant} 
+        tooltip={props.constraints.reason || "Add to purchases"} 
+        disabled={!props.constraints.result || waiting} 
+        onClick={onClick}
+      />
+    );
+  }
 }
 
 
