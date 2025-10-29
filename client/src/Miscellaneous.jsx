@@ -26,29 +26,47 @@ const waitingContext = createContext();
  */
 function MyNavbar(props) {
   const navigate = useNavigate();
+
+  const handleNavClick = (event, path) => {
+      event.preventDefault();
+      navigate(path);
+  };
+
   return (
     <>
-      <Navbar className="shadow" fixed="top" bg="light" style={{"marginBottom": "2rem"}}>
+      <Navbar className="shadow" expand="lg" fixed="top" bg="light" style={{ marginBottom: "2rem" }}>
         <Container>
-          <Navbar.Brand href="/" onClick={event => {event.preventDefault(); navigate("/");}}>
-            <i className="bi bi-cake2"/>
-            {" "}
+          <Navbar.Brand href="/" onClick={event => handleNavClick(event, "/")}>
+            <i className="bi bi-cake2 me-2"/> {/* Added margin */}
             Food Retrieving
           </Navbar.Brand>
-          <Nav>
-            {
-              props.user ?
-                <Navbar.Text>
-                  Logged in as: {props.user.username} | <a href="/logout" onClick={event => {event.preventDefault(); props.logoutCbk();}}>Logout</a>
-                </Navbar.Text>
-                :
-                <Nav.Link href="/login" active={false} onClick={event => {event.preventDefault(); navigate("/login");}}>
+          <Navbar.Toggle aria-controls="basic-navbar-nav" /> {/* Added for responsiveness */}
+          <Navbar.Collapse id="basic-navbar-nav">
+             {/* Use ms-auto to push Nav items to the right */}
+            <Nav className="ms-auto align-items-center">
+              {props.user ? (
+                // --- User is Logged In ---
+                <>
+                  {/* Show Admin Link if user is admin */}
+                  {props.user.isAdmin && (
+                    <Nav.Link as={Link} to="/admin" onClick={(e) => handleNavClick(e, '/admin')}>
+                       <i className="bi bi-shield-lock-fill me-1"/> Admin Panel
+                    </Nav.Link>
+                  )}
+                  {/* User Info and Logout */}
+                  <Navbar.Text className="ms-2"> {/* Added margin */}
+                    Logged in as: {props.user.username} | <a href="/logout" onClick={event => { event.preventDefault(); props.logoutCbk(); }}>Logout</a>
+                  </Navbar.Text>
+                </>
+              ) : (
+                // --- User is Logged Out ---
+                <Nav.Link href="/login" onClick={event => handleNavClick(event, "/login")}>
                   Login
-                  {" "}
-                  <i className="bi bi-person-fill"/>
+                  <i className="bi bi-person-fill ms-1"/> {/* Added margin */}
                 </Nav.Link>
-            }
-          </Nav>
+              )}
+            </Nav>
+          </Navbar.Collapse>
         </Container>
       </Navbar>
     </>

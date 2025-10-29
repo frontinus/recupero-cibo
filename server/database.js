@@ -33,7 +33,6 @@ const dbGetAsync = (db, sql, params = []) => new Promise((resolve, reject) => {
   });
 });
 
-
 // Helper to begin a transaction
 const dbBeginTransaction = (db) => new Promise((resolve, reject) => {
   db.run("BEGIN TRANSACTION", err => err ? reject(err) : resolve());
@@ -57,6 +56,7 @@ const dbRollback = (db) => new Promise((resolve, reject) => {
 function Database(dbname) {
   this.db = new sqlite.Database(dbname, err => {
     if (err) throw err;
+    this.db.run("PRAGMA foreign_keys = ON;");
   });
 
   /**
@@ -133,10 +133,6 @@ function Database(dbname) {
     return owner
   } 
 
-  
-
-  
-
   this.getPurchasesbyUser = async Username => {
     return (await dbAllAsync(
       this.db,
@@ -145,7 +141,7 @@ function Database(dbname) {
     )).map(c => c.Box_id);
   };
 
-  this.getBoxesbyId = async ShopId => {
+  this.getBoxIdsByShopId = async ShopId => {
     return (await dbAllAsync(
       this.db,
       "select Box_id from Boxinshop where Shop_id = ?",
@@ -328,28 +324,34 @@ this.editPurchase = async (boxesToAdd, boxesToRemove, userId, removedItems) => {
    * @returns a Promise that resolves to the user object {id, username, name, fullTime}
    */
   this.authUser = (username, password) => new Promise((resolve, reject) => {
-    // Get the user with the given email
     dbGetAsync(
       this.db,
-      "select * from Users where Username = ?",
+      // Select isAdmin
+      "SELECT * FROM Users WHERE Username = ?",
       [username]
     )
       .then(user => {
-        // If there is no such student, resolve to false.
-        // This is used instead of rejecting the Promise to differentiate the
-        // failure from database errors
-        if (!user) resolve(false);
+        if (!user){ 
+        return resolve(false); 
+        }// Use return for clarity
 
-        // Verify the password
         crypto.scrypt(password, user.Salt, 32, (err, hash) => {
-          if (err) reject(err);
+          if (err){ 
+            return reject(err);
+            } // Use return
 
-          if (crypto.timingSafeEqual(hash, Buffer.from(user.HashedPassword, "hex")))
-            resolve({id: user.ID, username: user.Username}); 
-          else resolve(false);
+          if (crypto.timingSafeEqual(hash, Buffer.from(user.HashedPassword, "hex"))) {
+            // Return user object including isAdmin
+            resolve({ id: user.ID, username: user.Username, isAdmin: user.IsAdmin === 1 }); // Convert 1/0 to boolean
+          } else {
+            resolve(false);
+          }
         });
       })
-      .catch(e => reject(e));
+      .catch(e => {
+        console.error(`authUser: Database error fetching user ${username}:`, e);
+        reject(e)
+      });
   });
 
   /**
@@ -360,13 +362,17 @@ this.editPurchase = async (boxesToAdd, boxesToRemove, userId, removedItems) => {
    * @returns a Promise that resolves to the user object {id, username, name, fullTime}
    */
   this.getUserbyId = async id => {
-    const user = await dbGetAsync(
-      this.db,
-      "select * from Users where ID = ? ",
-      [id]
-    );
-
-    return user;
+      const user = await dbGetAsync(
+        this.db,
+        // Select isAdmin
+        "SELECT ID, Username, IsAdmin FROM Users WHERE ID = ? ",
+        [id]
+      );
+      // Convert isAdmin 1/0 to boolean if user found
+      if (user) {
+          user.isAdmin = user.IsAdmin === 1;
+      }
+      return user; // Return the user object (or undefined if not found)
   };
 
   this.checkBox = async(Box_id) => {
@@ -537,6 +543,145 @@ this.getBoxesByShopId = async (shopId) => {
 
     return boxes;
   };
+
+  /**
+   * Creates a new shop.
+   * @returns {Promise<number>} Promise resolving to the ID of the newly created shop.
+   */
+  this.createShop = async (name, address, phone, foodType) => {
+    return new Promise((resolve, reject) => {
+        const sql = 'INSERT INTO Shops(ShopName, Adress, Phone_nb, Food_type) VALUES(?, ?, ?, ?)';
+        this.db.run(sql, [name, address, phone, foodType], function(err) {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(this.lastID); // Returns the ID of the inserted row
+            }
+        });
+    });
+  };
+
+  /**
+   * Creates a new box.
+   * @returns {Promise<number>} Promise resolving to the ID of the newly created box.
+   */
+  this.createBox = async (type, size, price, timeSpan) => {
+     return new Promise((resolve, reject) => {
+        // Assume Is_owned defaults to FALSE (0) in the DB or set it explicitly
+        const sql = 'INSERT INTO Boxes(Type, Size, Price, Retrieve_time_span, Is_owned) VALUES(?, ?, ?, ?, 0)';
+        this.db.run(sql, [type, size, price, timeSpan], function(err) {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(this.lastID); // Use the auto-generated ID if Boxes.ID is AUTOINCREMENT PRIMARY KEY
+            }
+        });
+     });
+  };
+
+   /**
+   * Creates a new food item type (if you add an Items table).
+   * Example - adjust if your schema is different or if you don't need a separate Items table.
+   * @returns {Promise<number>} Promise resolving to the ID of the newly created item.
+   */
+   this.createItem = async (itemName) => {
+       // Check if your DB has a separate 'Items' table or if 'content_name' is just text
+       // If just text, this function might not be needed.
+       // Example assuming an 'Items' table:
+       return new Promise((resolve, reject) => {
+          const sql = 'INSERT INTO Contents(Name) VALUES(?)'; // Use Contents table?
+          this.db.run(sql, [itemName], function(err) {
+              if (err) reject(err);
+              else resolve(this.lastID);
+          });
+       });
+   };
+
+  /**
+   * Adds an item with quantity to a specific box.
+   */
+  this.addItemToBox = async (boxId, itemName, quantity) => {
+      const sql = 'INSERT INTO Boxcontent(Box_id, content_name, quantity) VALUES (?, ?, ?)';
+      return dbRunAsync(this.db, sql, [boxId, itemName, quantity]);
+  };
+
+  /**
+   * Associates a box with a shop.
+   */
+  this.addBoxToShop = async (boxId, shopId) => {
+      const sql = 'INSERT INTO Boxinshop(Box_id, Shop_id) VALUES (?, ?)';
+      return dbRunAsync(this.db, sql, [boxId, shopId]);
+  };
+
+   /**
+    * Updates the retrieval time span for a box.
+    */
+   this.updateBoxTime = async (boxId, newTimeSpan) => {
+       const sql = 'UPDATE Boxes SET Retrieve_time_span = ? WHERE ID = ?';
+       return dbRunAsync(this.db, sql, [newTimeSpan, boxId]);
+   };
+
+   // --- More Admin Functions (Remove Box, Assign/Unassign - Add implementations as needed) ---
+   // Example: Remove Box (Needs careful handling of foreign keys/existing purchases)
+   this.removeBox = async (boxId) => {
+       // Consider implications: What happens if a user has this box reserved?
+       // Option 1: Prevent deletion if reserved.
+       // Option 2: Delete associated purchases too (cascade delete). Requires DB setup or manual delete.
+       // Option 3: Mark the box as 'deleted' or 'inactive' instead of actual deletion.
+
+       // Simplest (potentially problematic) version:
+       await dbBeginTransaction(this.db);
+       try {
+           await dbRunAsync(this.db, "DELETE FROM Boxcontent WHERE Box_id = ?", [boxId]);
+           await dbRunAsync(this.db, "DELETE FROM Boxinshop WHERE Box_id = ?", [boxId]);
+           await dbRunAsync(this.db, "DELETE FROM Purchases WHERE Box_id = ?", [boxId]); // Remove existing purchases of this box
+           await dbRunAsync(this.db, "DELETE FROM Boxes WHERE ID = ?", [boxId]);
+           await dbCommit(this.db);
+       } catch (err) {
+           await dbRollback(this.db);
+           throw err;
+       }
+   };
+
+   // Example: Assign Box to User (Forcefully creates a purchase)
+   this.assignBoxToUser = async (boxId, username) => {
+        // WARNING: This bypasses availability checks, time checks, one-per-shop rule etc. Use with caution.
+        await dbBeginTransaction(this.db);
+        try {
+            // Check if user already has it
+            const existing = await dbGetAsync(this.db, "SELECT * FROM Purchases WHERE Username = ? AND Box_id = ?", [username, boxId]);
+            if (!existing) {
+                // Check if box exists and isn't owned (or assign regardless?)
+                const box = await dbGetAsync(this.db, "SELECT Is_owned FROM Boxes WHERE ID = ?", [boxId]);
+                if (!box) throw new Error("Box not found");
+                if (box.Is_owned) throw new Error("Box already owned by someone else"); // Or override?
+
+                await dbRunAsync(this.db, "INSERT INTO Purchases(Username, Box_id) VALUES (?, ?)", [username, boxId]);
+                await dbRunAsync(this.db, "UPDATE Boxes SET Is_owned = 1 WHERE ID = ?", [boxId]); // Mark as owned
+            }
+            await dbCommit(this.db);
+        } catch (err) {
+            await dbRollback(this.db);
+            throw err;
+        }
+   };
+
+   // Example: Unassign Box from User
+   this.unassignBoxFromUser = async (boxId, username) => {
+        await dbBeginTransaction(this.db);
+        try {
+            const deleted = await dbRunAsync(this.db, "DELETE FROM Purchases WHERE Username = ? AND Box_id = ?", [username, boxId]);
+            // Check if anyone still owns the box - simplistic check assumes only one owner possible here
+            const owner = await this.getBoxOwner(boxId);
+            if (!owner || owner.length === 0) {
+                 await dbRunAsync(this.db, "UPDATE Boxes SET Is_owned = 0 WHERE ID = ?", [boxId]); // Mark as not owned if no one has it
+            }
+            await dbCommit(this.db);
+        } catch(err) {
+            await dbRollback(this.db);
+            throw err;
+        }
+   };
 
 }
 module.exports = Database;

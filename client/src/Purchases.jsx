@@ -201,37 +201,43 @@ function PurchasesList(props) {
   );
 }
 
-// --- MODIFIED Details View for Selected Box ---
 
 // --- Use THIS version of PurchasesDetails in Purchases.jsx ---
 function PurchasesDetails({ selectedItem }) {
     const ap = useContext(purchasesActivitiesContext);
     const waiting = useContext(waitingContext);
 
-    // Store the original item count when the component mounts or selectedItem changes
-    const [originalItemCount, setOriginalItemCount] = useState(selectedItem.Contents.length);
-    useEffect(() => {
-        setOriginalItemCount(selectedItem.Contents.length);
-    }, [selectedItem.ID]); // Depend only on the ID
-
-    // Get removed names from context
+    // Get removed names directly from context for this box
+    // This reflects the LOCAL, UNSAVED changes
     const removedItemNames = ap.getRemovedItemsForBox?.(selectedItem.ID) || [];
-    const maxRemovableItems = Math.min(2, originalItemCount); // Use stored original count
+
+    // Calculate max removable based on the contents *currently* shown in the prop,
+    // plus those marked for removal in context state. This determines the denominator.
+    const currentItemCount = selectedItem.Contents.length;
+    // Estimate original count for denominator calculation
+    const estimatedOriginalCount = currentItemCount + removedItemNames.filter(name => !selectedItem.Contents.some(item => item.name === name)).length;
+    const maxRemovableItems = Math.min(2, estimatedOriginalCount); // Denominator based on original count, capped at 2
 
     const handleRemoveClick = (contentObject) => { ap.handleItemRemoval?.(selectedItem.ID, contentObject.name); };
     const handleAddClick = (contentObject) => { ap.handleItemReAddition?.(selectedItem.ID, contentObject.name); };
 
-    const getButtonState = (itemName) => { /* ... same as before ... */
-      const isRemoved = removedItemNames.includes(itemName);
+    // Determine button state based on context (local changes)
+    const getButtonState = (itemName) => {
+      const isLocallyRemoved = removedItemNames.includes(itemName); // Check local unsaved state
       const canRemoveMore = removedItemNames.length < 2;
-      if (isRemoved) return { type: 'add', disabled: waiting };
-      const canRemove = selectedItem.Type === "Normal" && canRemoveMore && !waiting;
-      return { type: 'remove', disabled: !canRemove };
+      if (isLocallyRemoved) {
+          // If marked for removal locally, show Add (+) button
+          return { type: 'add', disabled: waiting };
+      } else {
+          // Otherwise, show Remove (-) button if allowed
+          const canRemove = selectedItem.Type === "Normal" && canRemoveMore && !waiting;
+          return { type: 'remove', disabled: !canRemove };
+      }
     };
 
     return (
         <div className="mt-3 border rounded p-3">
-            <Tab.Container id="details-tab" defaultActiveKey="details">
+            <Tab.Container id={`details-tab-${selectedItem.ID}`} defaultActiveKey="details">
                 <Row>
                      {/* Nav Column */}
                     <Col sm={4}>
@@ -246,32 +252,33 @@ function PurchasesDetails({ selectedItem }) {
                                 <div>
                                     {/* Box Details */}
                                     <p><b>ID:</b> {selectedItem.ID}</p>
-                                    {/* ... other details ... */}
-                                     <p><b>Price:</b> ${selectedItem.Price}</p>
-                                     <p><b>Retrieve:</b> {selectedItem.Retrieve_time_span}</p>
+                                    <p><b>Type:</b> {selectedItem.Type}</p>
+                                    <p><b>Price:</b> ${selectedItem.Price}</p>
+                                    <p><b>Retrieve:</b> {selectedItem.Retrieve_time_span}</p>
 
                                     {selectedItem.Type === "Normal" && (
                                         <div>
                                             <p className="mb-1"><b>Contents:</b></p>
-                                            {/* Render based on selectedItem.Contents prop */}
+                                            {/* Render ONLY items currently in selectedItem.Contents prop */}
                                             {selectedItem.Contents.length === 0 ? (
                                                 <em className="text-muted">Bag is empty.</em>
                                             ) : (
                                                 <ul className="list-unstyled mb-1">
-                                                    {selectedItem.Contents.map((content, index) => {
+                                                    {selectedItem.Contents.map((content) => {
                                                         const buttonState = getButtonState(content.name);
-                                                        // Item should NOT be styled with line-through here
-                                                        // because selectedItem.Contents should reflect the *actual* current content
-                                                        const isLocallyRemoved = removedItemNames.includes(content.name); // Check context state
+                                                        // Determine if locally marked removed FOR BUTTON DISPLAY ONLY
+                                                        const isLocallyMarkedRemoved = removedItemNames.includes(content.name);
 
                                                         return (
-                                                            <li key={`${selectedItem.ID}-${content.name}-${index}`} className="d-flex justify-content-between align-items-center mb-1">
-                                                                {/* Render item normally */}
+                                                            <li key={`${selectedItem.ID}-${content.name}`} className="d-flex justify-content-between align-items-center mb-1">
+                                                                {/* Render item text normally (no strike-through) */}
                                                                 <span>
                                                                     {content.quantity} x {content.name}
                                                                 </span>
-                                                                {/* Show button based on context state */}
-                                                                 {isLocallyRemoved ? (
+                                                                {/* Show +/- button based on LOCAL removed state */}
+                                                                 {isLocallyMarkedRemoved ? (
+                                                                    // This state should ideally not happen if prop is correct,
+                                                                    // but show Add(+) if context says removed
                                                                     <AddContentButton handleAddContent={() => handleAddClick(content)} disabled={buttonState.disabled}/>
                                                                 ) : (
                                                                     <RemoveContentButton handleRemoveContent={() => handleRemoveClick(content)} disabled={buttonState.disabled} />
@@ -281,13 +288,15 @@ function PurchasesDetails({ selectedItem }) {
                                                     })}
                                                 </ul>
                                             )}
-                                            {/* Counter uses context state for numerator, stored state for denominator */}
+                                            {/* Counter: Numerator from context (local changes), Denominator calculated */}
                                             <p className="text-muted small mt-2 mb-0">
                                                  Removed: {removedItemNames.length}/{maxRemovableItems}
                                             </p>
                                         </div>
                                     )}
-                                    {/* ... Surprise ... */}
+                                    {selectedItem.Type === "Surprise" && (
+                                        <p className="text-muted"><em>Contents are a surprise!</em></p>
+                                    )}
                                 </div>
                             </Tab.Pane>
                         </Tab.Content>

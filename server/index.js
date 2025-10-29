@@ -4,7 +4,7 @@ const Database = require("./database");
 const express = require("express");
 const cors = require("cors");
 const { body, validationResult } = require("express-validator");
-const { initAuthentication, isLoggedIn } = require("./authentication");
+const { initAuthentication, isLoggedIn, isAdmin } = require("./authentication");
 const passport = require("passport");
 
 const PORT = 3001;
@@ -189,15 +189,72 @@ app.post(
           else {
             // Get the purchases for this student
             db.getPurchasesbyUser(user.username)
-              .then(purchases =>  res.json({username: user.username, purchases}))
+              .then(purchases =>  {
+                console.log(`POST /api/session: Found purchases for ${user.username}:`, purchases);
+                res.json({username: user.username, purchases})})
               .catch(() => {
                 res.status(500).json({errors: ["Database error 2"]});
-              });
+              });  
           }
         });
       }
     })(req, res, next);
   }
+);
+
+app.post(
+    "/api/admin/shops",
+    isLoggedIn, // Must be logged in
+    isAdmin,    // Must be an admin
+    [ // Input validation
+        body("name", "Shop name is required").notEmpty().isString(),
+        body("address", "Address is required").notEmpty().isString(),
+        body("phone", "Phone number is required").notEmpty().isString(), 
+        body("foodType", "Food type is required").notEmpty().isString(),
+    ],
+    async (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array().map(e => e.msg) });
+        }
+
+        try {
+            const { name, address, phone, foodType } = req.body;
+            const shopId = await db.createShop(name, address, phone, foodType);
+            res.status(201).json({ id: shopId, message: "Shop created successfully" });
+        } catch (err) {
+            console.error("Error creating shop:", err);
+            res.status(500).json({ errors: ["Database error creating shop"] });
+        }
+    }
+);
+
+// Example: Create a new box
+app.post(
+    "/api/admin/boxes",
+    isLoggedIn,
+    isAdmin,
+    [
+        body("type", "Box type is required (Normal/Surprise)").isIn(['Normal', 'Surprise']),
+        body("size", "Box size is required (Small/Medium/Large)").isIn(['Small', 'Medium', 'Large']),
+        body("price", "Price must be a positive number").isFloat({ gt: 0 }),
+        body("timeSpan", "Retrieval time span is required (e.g., 18:00-19:00)").matches(/^\d{2}:\d{2}-\d{2}:\d{2}$/),
+    ],
+    async (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array().map(e => e.msg) });
+        }
+         try {
+            const { type, size, price, timeSpan } = req.body;
+            const boxId = await db.createBox(type, size, price, timeSpan);
+             // Note: This only creates the box, doesn't assign it to a shop yet
+            res.status(201).json({ id: boxId, message: "Box created successfully" });
+        } catch (err) {
+            console.error("Error creating box:", err);
+            res.status(500).json({ errors: ["Database error creating box"] });
+        }
+    }
 );
 
 
@@ -209,7 +266,7 @@ app.delete("/api/session", isLoggedIn, (req, res) => {
 app.get("/api/session/current", isLoggedIn, async (req, res) => {
   let purchases = undefined;
   let err = false;
-  await (db.getPurchasesbyUser(req.user.Username)
+  await (db.getPurchasesbyUser(req.user.username)
     .then(pr => purchases = pr)
     .catch(() => {
       res.status(500).json({errors: ["Database error 1"]});

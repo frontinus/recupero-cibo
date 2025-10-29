@@ -112,6 +112,38 @@ const logout = async () => await APICall(
 
 const fetchCurrentUser = async () => await APICall("session/current");
 
+/**
+ * Creates a new shop (Admin only).
+ * @param {string} name - Shop name
+ * @param {string} address - Shop address
+ * @param {string} phone - Shop phone number
+ * @param {string} foodType - Shop food type/category
+ * @returns {Promise<object>} Promise resolving to the server response (e.g., { id, message })
+ */
+const adminCreateShop = async (name, address, phone, foodType) => await APICall(
+  "admin/shops", // Matches the endpoint in index.js
+  "POST",
+  JSON.stringify({ name, address, phone, foodType }), // Correct body structure
+  { "Content-Type": "application/json" },
+  true // Expect a JSON response with the new ID
+);
+
+/**
+ * Creates a new box (Admin only).
+ * @param {'Normal'|'Surprise'} type - Box type
+ * @param {'Small'|'Medium'|'Large'} size - Box size
+ * @param {number} price - Box price
+ * @param {string} timeSpan - Retrieval time span (e.g., "HH:MM-HH:MM")
+ * @returns {Promise<object>} Promise resolving to the server response (e.g., { id, message })
+ */
+const adminCreateBox = async (type, size, price, timeSpan) => await APICall(
+  "admin/boxes", // Matches the endpoint in index.js
+  "POST",
+  JSON.stringify({ type, size, price, timeSpan }), // Correct body structure
+  { "Content-Type": "application/json" },
+  true // Expect a JSON response with the new ID
+);
+
 const API = {
   fetchBoxes,
   fetchBoxesByShop,
@@ -123,7 +155,9 @@ const API = {
   fetchCurrentUser,
   fetchShops,
   editContents,
-  fetchBoxesByIds
+  fetchBoxesByIds,
+  adminCreateBox,
+  adminCreateShop
 };
 
 

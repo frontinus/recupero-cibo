@@ -5,12 +5,13 @@ import { Box } from './Box';
 import {Shop} from './Shop';
 import { ShopsList } from './ShopsList';
 import { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Outlet, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Outlet, useNavigate, Navigate } from 'react-router-dom';
 import { ErrorsAlert, MyNavbar, shopsContext,contentContext, userContext, purchasesActivitiesContext, checkPurchasesModified, waitingContext, NotFoundPage,boxesContext } from './Miscellaneous';
 import { Col, Container, Row, Spinner } from 'react-bootstrap';
 import { API } from './API';
 import { LoginForm } from './LoginForm';
 import { Purchases } from './Purchases';
+import AdminPanel from './AdminPanel';
 
 function App() {
   return (
@@ -110,6 +111,7 @@ function Main() {
       const currentUser = await API.fetchCurrentUser();
       setUser(currentUser);
       setSavedBoxesList(currentUser.purchases);
+      console.log("Refetched user purchases:", currentUser.purchases);
        // --- RE-FETCH INITIAL BOX DETAILS ---
        if (currentUser.purchases && currentUser.purchases.length > 0) {
          const boxesDetails = await API.fetchBoxesByIds(currentUser.purchases);
@@ -309,13 +311,39 @@ const handleItemRemoval = (boxId, itemName) => {
   };
  
   // The Routes and HomePage structure remain the same
-  return (
+return (
     <Routes>
+      {/* Routes with the main Header (Navbar, Error Alert) */}
       <Route path="/" element={<Header user={user} logoutCbk={logout} errors={errors} clearErrors={() => setErrors([])}/>}>
-        {/* Pass originalBoxContents and removedItemsByBox down if needed directly, or rely on context functions */}
-        <Route path="" element={loading ? <LoadingSpinner/> : <HomePage user={user} shops={shops} purchaseActivities={purchasesActivities} errorAlertActive={errors.length > 0} waiting={waiting} />} />
-        <Route path="login" element={loading ? <LoadingSpinner/> : <LoginForm loginCbk={login} errorAlertActive={errors.length > 0}/>}/>
-      </Route>
+
+        {/* Home Page Route */}
+        <Route
+           index // Use 'index' for the default path "/"
+           element={loading ? <LoadingSpinner/> : <HomePage user={user} shops={shops} purchaseActivities={purchasesActivities} errorAlertActive={errors.length > 0} waiting={waiting} />}
+         />
+
+        {/* Login Page Route */}
+        <Route
+          path="login"
+          element={loading ? <LoadingSpinner/> : (user ? <Navigate to="/" /> : <LoginForm loginCbk={login} errorAlertActive={errors.length > 0}/>)} // Redirect if already logged in
+        />
+
+        {/* --- NEW Admin Page Route --- */}
+        <Route
+          path="admin"
+          element={
+            loading ? <LoadingSpinner/> : ( // Show spinner while loading initial user state
+              user && user.isAdmin ? <AdminPanel /> : ( // If loaded and user is admin, show AdminPanel
+                user ? <Navigate to="/" /> : <Navigate to="/login" /> // If loaded but not admin, redirect to home. If not logged in, redirect to login.
+              )
+            )
+          }
+        />
+         {/* --- End NEW Route --- */}
+
+      </Route> {/* End of routes with Header */}
+
+      {/* Catch-all Not Found Route (outside Header) */}
       <Route path="*" element={<NotFoundPage/>}/>
     </Routes>
   );

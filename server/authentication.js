@@ -21,18 +21,30 @@ function initAuthentication(app, db) {
 
     // Serialization and deserialization of the user to and from a cookie
     passport.serializeUser((user, done) => {
-        done(null, user.id);
-    })
+        // Store id and isAdmin status
+        done(null, { id: user.id, isAdmin: user.isAdmin });
+    });
 
-    passport.deserializeUser((id, done) => {
-        db.getUserbyId(id)
-            .then(user => done(null, user))
+    passport.deserializeUser((sessionData, done) => {
+        // sessionData now contains { id, isAdmin }
+        db.getUserbyId(sessionData.id)
+            .then(user => {
+                // db.getUserbyId returns { ID, Username, isAdmin }
+                // We trust the isAdmin flag from the database primarily,
+                // but could compare with sessionData.isAdmin if needed.
+                if (user) {
+                     // Ensure the user object for req.user includes isAdmin
+                    done(null, { id: user.ID, username: user.Username, isAdmin: user.isAdmin });
+                } else {
+                    done({ status: 404, msg: 'User not found during deserialization' }, null);
+                }
+            })
             .catch(e => done(e, null));
-    })
+    });
 
     // Initialize express-session
     app.use(session({
-        secret: "386e60adeb6f34186ae167a0cea7ee1dfa4109314e8c74610671de0ef9662191",
+        secret: process.env.SESSION_SECRET || "386e60adeb6f34186ae167a0cea7ee1dfa4109314e8c74610671de0ef9662191",
         resave: false,
         saveUninitialized: false,
     }));
@@ -51,4 +63,16 @@ function isLoggedIn(req, res, next) {
     return res.status(401).json({ errors: ['Must be authenticated to make this request!'] });
 }
 
-module.exports = { initAuthentication, isLoggedIn };
+/**
+ * Express middleware to check if the authenticated user is an admin.
+ * Assumes isLoggedIn middleware runs first.
+ */
+function isAdmin(req, res, next) {
+    // req.user comes from deserializeUser and should include isAdmin
+    if (req.user && req.user.isAdmin === true) {
+        return next();
+    }
+    return res.status(403).json({ errors: ['Forbidden: Administrator access required!'] });
+}
+
+module.exports = { initAuthentication, isLoggedIn, isAdmin };
