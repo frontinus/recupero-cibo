@@ -51,7 +51,7 @@ function BoxItem(props) {
           <Accordion.Header>
             <Container style={{"paddingLeft": "0.5rem"}}>
               <Row>
-                <Col md="auto" className="align-self-ceDnter">
+                <Col md="auto" className="align-self-center">
                   <Badge bg="secondary">
                     <tt>{props.box.ID}</tt>
                   </Badge>
@@ -60,15 +60,17 @@ function BoxItem(props) {
                   { constrOk ? props.box.Type : <em style={{"color": "grey"}}>{props.box.Type}</em> }
                   {" "}
                   <Badge bg="light" pill style={{"color": "black"}}>
-                    Price: {props.box.Price}
+                    Price: ${props.box.Price}
                   </Badge>
                 </Col>
                 <Col className="text-end align-self-center" style={{"marginRight": "1rem"}}>
-                  <Badge>
-                    {
-                      props.box.Size 
-                    }
-                    {" "}
+                  <Badge bg={props.box.Size === "Small" ? "info" : props.box.Size === "Medium" ? "primary" : "success"}>
+                    {props.box.Size}
+                  </Badge>
+                  {" "}
+                  {/* NEW: Show Available/Reserved status */}
+                  <Badge bg={props.box.Is_owned ? "danger" : "success"} pill>
+                    {props.box.Is_owned ? "Reserved" : "Available"}
                   </Badge>
                 </Col>
               </Row>
@@ -89,41 +91,31 @@ function BoxItem(props) {
 }
 
 
-// Replace this function in BoxesList.jsx
-
 function ContextualButton(props) {
   const user = useContext(userContext);
   const purchasesa = useContext(purchasesActivitiesContext);
   const waiting = useContext(waitingContext);
 
-  // Check if the box is already in the user's purchase list
   if (user.purchases?.includes(props.box.ID)) {
-    
-    // --- This is a REMOVE button ---
     const inner = <i className="bi bi-dash"/>;
     const variant = "danger";
     const onClick = () => purchasesa.removeBoxFromPurchases(props.box.ID);
     
-    // It should only be disabled if 'waiting' is true.
-    // The 'constraints.result' (which is false) should be ignored.
     return (
       <SmallRoundButton 
         inner={inner} 
         variant={variant} 
-        tooltip={"Remove from purchases"} // New, clearer tooltip
+        tooltip={"Remove from purchases"}
         disabled={waiting} 
         onClick={onClick}
       />
     );
   
   } else {
-
-    // --- This is an ADD button ---
     const inner = <i className="bi bi-plus"/>;
     const variant = "success";
     const onClick = () => purchasesa.addBoxtoPurchases(props.box.ID);
 
-    // It *should* be disabled if constraints fail or we are waiting.
     return (
       <SmallRoundButton 
         inner={inner} 
@@ -156,6 +148,18 @@ function BoxItemDetails(props) {
           {props.box.Type}
         </strong>
       }
+      {/* NEW: Show contents for Normal bags */}
+      {props.box.Type === "Normal" && props.box.Contents && props.box.Contents.length > 0 && (
+        <>
+          <br/>
+          <em style={{"color": "grey"}}>Contents: </em>
+          <ul style={{"marginTop": "0.5rem", "marginBottom": "0"}}>
+            {props.box.Contents.map((item, idx) => (
+              <li key={idx}>{item.quantity} x {item.name}</li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   );
 }
@@ -175,3 +179,4 @@ function BoxDrop(props) {
 }
 
 export { BoxesList };
+

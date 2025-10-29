@@ -1,4 +1,401 @@
+/* Reset padding for login page */
 body:has(.login-page-reset) #root {
   padding: 0 !important;
   text-align: left !important;
+}
+
+/* Login container styling */
+.login-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  padding: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Minimum height for vertical centering */
+.min-vh-75 {
+  min-height: 80vh;
+  width: 100%;
+}
+
+/* Card styling */
+.login-page-reset .card {
+  border-radius: 20px;
+  overflow: hidden;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+/* Hero section inside card */
+.login-hero {
+  position: relative;
+  padding: 3rem 2rem;
+}
+
+.login-hero h2 {
+  font-size: 2rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+
+.login-hero p {
+  font-size: 1.1rem;
+}
+
+.login-hero::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 30px;
+  background: white;
+  border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+}
+
+/* Tab styling */
+.login-page-reset .nav-tabs {
+  border-bottom: 2px solid #e9ecef;
+}
+
+.login-page-reset .nav-tabs .nav-link {
+  border: none;
+  color: #6c757d;
+  font-weight: 500;
+  padding: 1rem 1.5rem;
+  transition: all 0.3s ease;
+}
+
+.login-page-reset .nav-tabs .nav-link:hover {
+  border-color: transparent;
+  color: #667eea;
+}
+
+.login-page-reset .nav-tabs .nav-link.active {
+  border: none;
+  border-bottom: 3px solid #667eea;
+  color: #667eea;
+  background-color: transparent;
+}
+
+/* Form styling */
+.login-page-reset .form-label {
+  font-weight: 500;
+  color: #495057;
+  margin-bottom: 0.5rem;
+}
+
+.login-page-reset .form-control {
+  border-radius: 8px;
+  border: 1px solid #ced4da;
+  transition: all 0.3s ease;
+}
+
+.login-page-reset .form-control:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 0.25rem rgba(102, 126, 234, 0.15);
+}
+
+.login-page-reset .form-control-lg {
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+}
+
+/* Button styling */
+.login-page-reset .btn {
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.login-page-reset .btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.login-page-reset .btn:active {
+  transform: translateY(0);
+}
+
+/* Password toggle button */
+.login-page-reset .btn-link {
+  padding: 0.5rem;
+  text-decoration: none;
+  z-index: 10;
+}
+
+.login-page-reset .btn-link:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+/* Info cards at bottom */
+.login-page-reset .info-card {
+  transition: all 0.3s ease;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 280px;
+  margin: 0 auto;
+}
+
+.login-page-reset .info-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Info card content wrapper */
+.login-page-reset .info-card-content {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Ensure info card text displays properly */
+.login-page-reset .info-card h6 {
+  display: block;
+  width: 100%;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
+  font-weight: 600;
+  font-size: 1rem;
+  line-height: 1.3;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.login-page-reset .info-card p {
+  display: block;
+  width: 100%;
+  white-space: normal;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.4;
+  font-size: 0.875rem;
+  margin: 0 auto;
+  text-align: center;
+}
+
+/* Force proper text flow */
+.login-page-reset .info-card .card-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+  width: 100%;
+}
+
+/* Back link styling */
+.login-page-reset a {
+  color: #667eea;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.login-page-reset a:hover {
+  color: #764ba2;
+  text-decoration: none;
+}
+
+/* Form text styling */
+.login-page-reset .form-text {
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+/* Invalid feedback styling */
+.login-page-reset .invalid-feedback {
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+/* Spinner in button */
+.login-page-reset .spinner-border-sm {
+  width: 1rem;
+  height: 1rem;
+  border-width: 0.15em;
+}
+
+/* Tab pane content */
+.login-page-reset .tab-pane {
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .login-container {
+    padding: 1rem;
+  }
+
+  .login-page-reset .card-body {
+    padding: 2rem 1.5rem !important;
+  }
+
+  .login-hero {
+    padding: 2rem 1.5rem !important;
+  }
+
+  .login-hero h2 {
+    font-size: 1.5rem;
+  }
+
+  .login-hero p {
+    font-size: 0.95rem;
+  }
+
+  .login-page-reset .nav-tabs .nav-link {
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+  }
+  
+  /* Stack info cards on mobile with proper spacing */
+  .login-page-reset .info-card {
+    margin-bottom: 1rem;
+    min-height: 140px;
+    max-width: 100%;
+  }
+  
+  .login-page-reset .info-card .card-body {
+    min-height: 140px;
+    padding: 1.5rem 1rem !important;
+  }
+}
+
+/* Medium screens */
+@media (min-width: 768px) and (max-width: 992px) {
+  .login-container {
+    padding: 1.5rem;
+  }
+  
+  .login-page-reset .card-body {
+    padding: 2.5rem !important;
+  }
+  
+  /* Ensure proper card sizing on tablet */
+  .login-page-reset .info-card {
+    min-height: 160px;
+    max-width: 220px;
+  }
+  
+  .login-page-reset .info-card .card-body {
+    min-height: 160px;
+  }
+}
+
+/* Large screens - more spacious */
+@media (min-width: 992px) {
+  .login-page-reset .card-body {
+    padding: 3rem !important;
+  }
+  
+  .login-hero {
+    padding: 3.5rem 3rem !important;
+  }
+  
+  /* Info cards proper sizing */
+  .login-page-reset .info-card {
+    min-height: 180px;
+    max-width: 260px;
+  }
+  
+  .login-page-reset .info-card .card-body {
+    min-height: 180px;
+  }
+}
+
+/* Ensure proper spacing */
+.login-page-reset .mb-3 {
+  margin-bottom: 1.5rem !important;
+}
+
+.login-page-reset .mt-3 {
+  margin-top: 1.5rem !important;
+}
+
+.login-page-reset .mt-4 {
+  margin-top: 2.5rem !important;
+}
+
+/* Back link styling - ensure it's visible and properly positioned */
+.login-page-reset > .login-container > .row > .col > .mb-3 {
+  text-align: left;
+  padding-left: 0.5rem;
+}
+
+/* Icon styling in labels */
+.login-page-reset .form-label i {
+  color: #667eea;
+}
+
+/* Success state for valid inputs */
+.login-page-reset .form-control.is-valid {
+  border-color: #28a745;
+}
+
+.login-page-reset .form-control.is-valid:focus {
+  border-color: #28a745;
+  box-shadow: 0 0 0 0.25rem rgba(40, 167, 69, 0.15);
+}
+
+/* Info card icons */
+.login-page-reset .text-primary {
+  color: #667eea !important;
+}
+
+.login-page-reset .text-success {
+  color: #28a745 !important;
+}
+
+.login-page-reset .text-warning {
+  color: #ffc107 !important;
+}
+
+/* Shadow utilities */
+.shadow-lg {
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.175) !important;
+}
+
+.shadow-sm {
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075) !important;
+}
+
+/* Border radius utilities */
+.rounded-lg {
+  border-radius: 16px !important;
+}
+
+/* Position utilities for password toggle */
+.position-relative {
+  position: relative !important;
+}
+
+.position-absolute {
+  position: absolute !important;
+}
+
+.end-0 {
+  right: 0 !important;
+}
+
+.top-50 {
+  top: 50% !important;
+}
+
+.translate-middle-y {
+  transform: translateY(-50%) !important;
 }

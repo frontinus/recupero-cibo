@@ -30,11 +30,14 @@ function initAuthentication(app, db) {
         db.getUserbyId(sessionData.id)
             .then(user => {
                 // db.getUserbyId returns { ID, Username, isAdmin }
-                // We trust the isAdmin flag from the database primarily,
-                // but could compare with sessionData.isAdmin if needed.
                 if (user) {
-                     // Ensure the user object for req.user includes isAdmin
-                    done(null, { id: user.ID, username: user.Username, isAdmin: user.isAdmin });
+                    // FIXED: Ensure consistent lowercase 'username' property
+                    done(null, { 
+                        id: user.ID, 
+                        username: user.Username.toLowerCase(), // Normalize to lowercase
+                        Username: user.Username, // Keep original for backward compatibility
+                        isAdmin: user.isAdmin 
+                    });
                 } else {
                     done({ status: 404, msg: 'User not found during deserialization' }, null);
                 }

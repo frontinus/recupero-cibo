@@ -5,14 +5,6 @@ const SERVER_BASE = `${SERVER_HOST}:${SERVER_PORT}/api/`;
 
 /**
  * Generic API call
- *
- * @param endpoint API endpoint string to fetch
- * @param method HTTP method
- * @param body HTTP request body string
- * @param headers additional HTTP headers to be passed to 'fetch'
- * @param expectResponse wheter to expect a non-empty response body
- * 
- * @returns whatever the specified API endpoint returns
  */
 const APICall = async (endpoint, method = "GET", body = undefined, headers = undefined, expectResponse = true) => {
   let errors = [];
@@ -51,7 +43,6 @@ const fetchBoxesByIds = async (ids) => await APICall(
   { "Content-Type": "application/json" }
 );
 
-
 const deletePurchases = async () => await APICall(
   "purchase",
   "DELETE",
@@ -71,7 +62,6 @@ const createPurchase = async (boxes) => await APICall(
 const editPurchase = async (add, rem, Boxes_id, removedItems) => await APICall(
   "Purchases-modifications",
   "POST",
-  // Include removedItems in the JSON body
   JSON.stringify({ add, rem, Boxes_id, removedItems }),
   { "Content-Type": "application/json" },
   false
@@ -87,9 +77,6 @@ const editContents = async (Box_id,contents)=> await APICall(
 
 /**
  * Attempts to login the user
- * 
- * @param username username of the user
- * @param password password of the user
  */
 const login = async (username, password) => await APICall(
   "session",
@@ -99,8 +86,17 @@ const login = async (username, password) => await APICall(
 );
 
 /**
- * Logout.
- * This function can return a "Not authenticated" error if the user wasn't authenticated beforehand
+ * Register a new user
+ */
+const register = async (username, password) => await APICall(
+  "register",
+  "POST",
+  JSON.stringify({username, password}),
+  { "Content-Type": "application/json" }
+);
+
+/**
+ * Logout
  */
 const logout = async () => await APICall(
   "session",
@@ -113,35 +109,25 @@ const logout = async () => await APICall(
 const fetchCurrentUser = async () => await APICall("session/current");
 
 /**
- * Creates a new shop (Admin only).
- * @param {string} name - Shop name
- * @param {string} address - Shop address
- * @param {string} phone - Shop phone number
- * @param {string} foodType - Shop food type/category
- * @returns {Promise<object>} Promise resolving to the server response (e.g., { id, message })
+ * Creates a new shop (Admin only)
  */
 const adminCreateShop = async (name, address, phone, foodType) => await APICall(
-  "admin/shops", // Matches the endpoint in index.js
+  "admin/shops",
   "POST",
-  JSON.stringify({ name, address, phone, foodType }), // Correct body structure
+  JSON.stringify({ name, address, phone, foodType }),
   { "Content-Type": "application/json" },
-  true // Expect a JSON response with the new ID
+  true
 );
 
 /**
- * Creates a new box (Admin only).
- * @param {'Normal'|'Surprise'} type - Box type
- * @param {'Small'|'Medium'|'Large'} size - Box size
- * @param {number} price - Box price
- * @param {string} timeSpan - Retrieval time span (e.g., "HH:MM-HH:MM")
- * @returns {Promise<object>} Promise resolving to the server response (e.g., { id, message })
+ * Creates a new box (Admin only)
  */
 const adminCreateBox = async (type, size, price, timeSpan) => await APICall(
-  "admin/boxes", // Matches the endpoint in index.js
+  "admin/boxes",
   "POST",
-  JSON.stringify({ type, size, price, timeSpan }), // Correct body structure
+  JSON.stringify({ type, size, price, timeSpan }),
   { "Content-Type": "application/json" },
-  true // Expect a JSON response with the new ID
+  true
 );
 
 const API = {
@@ -151,6 +137,7 @@ const API = {
   createPurchase,
   editPurchase,
   login,
+  register, // NEW: Add register function
   logout,
   fetchCurrentUser,
   fetchShops,
@@ -159,6 +146,5 @@ const API = {
   adminCreateBox,
   adminCreateShop
 };
-
 
 export { API };

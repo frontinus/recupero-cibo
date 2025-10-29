@@ -1,0 +1,241 @@
+/* Custom styles for Food Rescue Connect */
+
+/* Smooth transitions for interactive elements */
+.hover-card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Card hover effect */
+.card:hover {
+  transform: translateY(-2px);
+}
+
+/* Improve button hover states */
+.btn {
+  transition: all 0.2s ease;
+}
+
+/* Gradient backgrounds */
+.gradient-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.gradient-success {
+  background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+}
+
+/* Badge styling improvements */
+.badge {
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+/* List group improvements */
+.list-group-item {
+  transition: all 0.2s ease;
+}
+
+.list-group-item:hover {
+  background-color: #f8f9fa;
+}
+
+.list-group-item.active {
+  background-color: #667eea !important;
+  border-color: #667eea !important;
+}
+
+/* Accordion improvements */
+.accordion-button:not(.collapsed) {
+  background-color: #e7f1ff;
+  color: #0d6efd;
+}
+
+.accordion-button:focus {
+  border-color: #86b7fe;
+  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* Alert improvements */
+.alert {
+  border-left: 4px solid;
+}
+
+.alert-info {
+  border-left-color: #0dcaf0;
+}
+
+.alert-danger {
+  border-left-color: #dc3545;
+}
+
+.alert-success {
+  border-left-color: #198754;
+}
+
+/* Icon improvements */
+.bi {
+  vertical-align: -0.125em;
+}
+
+/* Navbar improvements */
+.navbar {
+  backdrop-filter: blur(10px);
+  background-color: rgba(248, 249, 250, 0.95) !important;
+}
+
+/* Card improvements for public view */
+.card {
+  overflow: hidden;
+}
+
+.card-body {
+  position: relative;
+}
+
+/* Spinner improvements */
+.spinner-border {
+  color: #667eea;
+}
+
+/* Form control focus */
+.form-control:focus,
+.form-select:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 0.25rem rgba(102, 126, 234, 0.25);
+}
+
+/* Small rounded button improvements */
+.rounded-pill {
+  transition: all 0.2s ease;
+}
+
+.rounded-pill:hover {
+  transform: scale(1.05);
+}
+
+/* Tooltip improvements */
+.tooltip-inner {
+  background-color: #2d3748;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+/* Public shops view specific */
+.public-shop-card {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.public-shop-card:hover {
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+/* Info section styling */
+.info-icon-large {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  display: block;
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+  .container-fluid {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+  
+  .card {
+    margin-bottom: 1rem;
+  }
+}
+
+/* Animation for unavailable boxes */
+@keyframes highlight-pulse {
+  0% {
+    background-color: #f8d7da;
+  }
+  50% {
+    background-color: #f1aeb5;
+  }
+  100% {
+    background-color: #f8d7da;
+  }
+}
+
+.unavailable-highlight {
+  animation: highlight-pulse 1s ease-in-out 3;
+}
+
+/* Loading state improvements */
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+/* Success state for saved changes */
+.save-success {
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Improve text readability */
+.text-muted {
+  color: #6c757d !important;
+}
+
+/* Better spacing for content sections */
+.content-section {
+  margin-bottom: 2rem;
+}
+
+/* Hero section specific */
+.hero-section {
+  border-radius: 12px;
+  margin-bottom: 2rem;
+  padding: 2rem;
+}
+
+/* Status badges */
+.badge.badge-available {
+  background-color: #28a745 !important;
+}
+
+.badge.badge-reserved {
+  background-color: #dc3545 !important;
+}
+
+/* Custom scrollbar for better UX */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}

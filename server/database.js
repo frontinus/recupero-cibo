@@ -230,88 +230,163 @@ function Database(dbname) {
     db.run("ROLLBACK", err => err ? reject(err) : resolve());
   });
 
-  // In database.js
 
 this.editPurchase = async (boxesToAdd, boxesToRemove, userId, removedItems) => {
-  console.log("--- editPurchase called ---");
+  console.log("=== editPurchase Transaction Start ===");
   console.log("User:", userId);
   console.log("Boxes to Add:", boxesToAdd);
   console.log("Boxes to Remove:", boxesToRemove);
-  console.log("Items to Remove:", JSON.stringify(removedItems, null, 2)); // Log the critical object
-  await dbBeginTransaction(this.db); //
+  console.log("Items to Remove:", JSON.stringify(removedItems, null, 2));
+  
+  await dbBeginTransaction(this.db);
 
   try {
-    // --- 1. Check Availability ---
-    if (boxesToAdd.length > 0) { //
+    // --- 1. Validate Input ---
+    if (!userId) {
+      throw new Error("User ID is required");
+    }
+
+    // --- 2. Check Availability of Boxes to Add ---
+    if (boxesToAdd.length > 0) {
       const placeholders = boxesToAdd.map(() => '?').join(',');
-      const sqlCheck = `SELECT ID, Is_owned FROM Boxes WHERE ID IN (${placeholders})`; //
-      const unavailableBoxes = (await dbAllAsync(this.db, sqlCheck, boxesToAdd))
-                                  .filter(box => box.Is_owned); //
-      if (unavailableBoxes.length > 0) { //
-        throw new Error(`Box ${unavailableBoxes[0].ID} is no longer available.`); //
+      const sqlCheck = `SELECT ID, Is_owned FROM Boxes WHERE ID IN (${placeholders})`;
+      const boxes = await dbAllAsync(this.db, sqlCheck, boxesToAdd);
+      
+      // Check if all requested boxes exist
+      if (boxes.length !== boxesToAdd.length) {
+        const foundIds = boxes.map(b => b.ID);
+        const missingIds = boxesToAdd.filter(id => !foundIds.includes(id));
+        throw new Error(`Box(es) not found: ${missingIds.join(', ')}`);
+      }
+      
+      // Check if any are already owned
+      const unavailableBoxes = boxes.filter(box => box.Is_owned);
+      if (unavailableBoxes.length > 0) {
+        throw new Error(`Box ${unavailableBoxes[0].ID} is no longer available.`);
       }
     }
 
-    // --- 2. Add Purchases ---
-    let pAdd = Promise.resolve();
-    if (boxesToAdd.length > 0) { //
-      const sqlAdd = "INSERT INTO Purchases (Username, Box_id) VALUES " + boxesToAdd
-        .map(() => "(?, ?)").join(", "); //
-      const paramsAdd = boxesToAdd.flatMap(c => [userId, c]); //
-      pAdd = dbRunAsync(this.db, sqlAdd, paramsAdd); //
+    // --- 3. Add New Purchases ---
+    if (boxesToAdd.length > 0) {
+      const sqlAdd = "INSERT INTO Purchases (Username, Box_id) VALUES " + 
+        boxesToAdd.map(() => "(?, ?)").join(", ");
+      const paramsAdd = boxesToAdd.flatMap(c => [userId, c]);
+      
+      console.log("Executing INSERT:", sqlAdd);
+      console.log("With params:", paramsAdd);
+      
+      await dbRunAsync(this.db, sqlAdd, paramsAdd);
     }
 
-    // --- 3. Remove Purchases ---
-    const pRem = boxesToRemove.map(boxId => dbRunAsync( //
-      this.db,
-      "DELETE FROM Purchases WHERE (Username = ? AND Box_id = ?)", //
-      [userId, boxId]
-    ));
+    // --- 4. Remove Purchases ---
+    for (const boxId of boxesToRemove) {
+      console.log(`Removing purchase: User=${userId}, Box=${boxId}`);
+      
+      await dbRunAsync(
+        this.db,
+        "DELETE FROM Purchases WHERE (Username = ? AND Box_id = ?)",
+        [userId, boxId]
+      );
+    }
 
-    // --- 4. Toggle Ownership ---
-    const allBoxesToToggle = [...boxesToAdd, ...boxesToRemove]; //
-    const pToggle = allBoxesToToggle.map(boxId => dbRunAsync( //
-      this.db,
-      "UPDATE Boxes SET Is_owned = NOT Is_owned WHERE ID = ?", //
-      [boxId]
-    ));
+    // --- 5. Toggle Ownership Status ---
+    const allBoxesToToggle = [...boxesToAdd, ...boxesToRemove];
+    for (const boxId of allBoxesToToggle) {
+      console.log(`Toggling ownership for box ${boxId}`);
+      
+      await dbRunAsync(
+        this.db,
+        "UPDATE Boxes SET Is_owned = NOT Is_owned WHERE ID = ?",
+        [boxId]
+      );
+    }
 
-    // --- 5. Remove Specific Items ---
-    const pRemoveItems = []; //
-    for (const boxIdStr in removedItems) { //
-      const boxId = parseInt(boxIdStr, 10); //
-      const itemsToRemove = removedItems[boxIdStr]; //
+    // --- 6. Remove Specific Items from Box Contents ---
+    // FIXED: Enhanced with better validation and error handling
+    if (removedItems && Object.keys(removedItems).length > 0) {
+      console.log("=== Processing Item Removals ===");
+      
+      for (const boxIdStr in removedItems) {
+        const boxId = parseInt(boxIdStr, 10);
+        const itemsToRemove = removedItems[boxIdStr];
 
-      if (itemsToRemove && itemsToRemove.length > 0) { //
-        itemsToRemove.forEach(itemName => { //
-          console.log(` ---> Preparing DELETE for Box ID: ${boxId}, Item: '${itemName}'`);
-          // --- THIS IS THE CRITICAL PART ---
-          pRemoveItems.push(dbRunAsync( //
-            this.db,
-            "DELETE FROM Boxcontent WHERE Box_id = ? AND content_name = ?", //
-            [boxId, itemName] // Make sure boxId and itemName are correct
-          ).catch(e => { // ADD CATCH HERE
-     console.error(`ERROR deleting item '${itemName}' from box ${boxId}:`, e);
-     throw e; // Re-throw to ensure transaction rolls back
-  }));
+        if (!Array.isArray(itemsToRemove) || itemsToRemove.length === 0) {
+          console.log(`Skipping box ${boxId}: no items to remove or invalid format`);
+          continue;
+        }
+
+        // Verify the box exists and user owns it
+        const ownership = await dbGetAsync(
+          this.db,
+          "SELECT * FROM Purchases WHERE Username = ? AND Box_id = ?",
+          [userId, boxId]
+        );
+
+        if (!ownership) {
+          console.warn(`Warning: User ${userId} does not own box ${boxId}, skipping item removal`);
+          continue;
+        }
+
+        // Get current contents for this box
+        const currentContents = await dbAllAsync(
+          this.db,
+          "SELECT content_name, quantity FROM Boxcontent WHERE Box_id = ?",
+          [boxId]
+        );
+
+        console.log(`Box ${boxId} current contents:`, currentContents);
+
+        // Validate that items to remove actually exist in the box
+        const availableItemNames = currentContents.map(c => c.content_name);
+        const validItemsToRemove = itemsToRemove.filter(item => {
+          if (availableItemNames.includes(item)) {
+            return true;
+          } else {
+            console.warn(`Warning: Item '${item}' not found in box ${boxId}, skipping`);
+            return false;
+          }
         });
+
+        // Enforce the 2-item removal limit
+        if (validItemsToRemove.length > 2) {
+          throw new Error(`Cannot remove more than 2 items from box ${boxId}. Attempted to remove ${validItemsToRemove.length} items.`);
+        }
+
+        // Perform the deletions
+        for (const itemName of validItemsToRemove) {
+          console.log(`Deleting item '${itemName}' from box ${boxId}`);
+          
+          const result = await dbRunAsync(
+            this.db,
+            "DELETE FROM Boxcontent WHERE Box_id = ? AND content_name = ?",
+            [boxId, itemName]
+          );
+
+          console.log(`Delete result for '${itemName}':`, result);
+        }
+
+        console.log(`Successfully removed ${validItemsToRemove.length} items from box ${boxId}`);
       }
     }
 
-    // --- 6. Wait ---
-    await Promise.all([pAdd, ...pRem, ...pToggle, ...pRemoveItems]); //
-
-    // --- 7. Commit ---
-    console.log("--- Operations successful, attempting COMMIT ---");
-    await dbCommit(this.db); //
-    console.log("--- COMMIT successful ---");
+    // --- 7. Commit Transaction ---
+    console.log("=== All operations successful, committing transaction ===");
+    await dbCommit(this.db);
+    console.log("=== Transaction committed successfully ===");
 
   } catch (err) {
-    // --- 8. Rollback ---
-    console.error("--- Error occurred, attempting ROLLBACK ---", err);
-    await dbRollback(this.db); //
-    console.log("--- ROLLBACK successful ---");
-    throw err; //
+    // --- 8. Rollback on Error ---
+    console.error("=== ERROR in editPurchase, rolling back transaction ===");
+    console.error("Error details:", err);
+    
+    try {
+      await dbRollback(this.db);
+      console.log("=== Rollback successful ===");
+    } catch (rollbackErr) {
+      console.error("=== CRITICAL: Rollback failed ===", rollbackErr);
+    }
+    
+    throw err;
   }
 };
 
@@ -682,6 +757,64 @@ this.getBoxesByShopId = async (shopId) => {
             throw err;
         }
    };
+
+   /**
+ * Register a new user
+ * 
+ * @param username username for the new user
+ * @param password plain text password (will be hashed)
+ * 
+ * @returns a Promise that resolves to the new user object {id, username, isAdmin}
+ */
+this.registerUser = (username, password) => new Promise((resolve, reject) => {
+  // First check if username already exists
+  dbGetAsync(
+    this.db,
+    "SELECT Username FROM Users WHERE Username = ?",
+    [username]
+  )
+    .then(existingUser => {
+      if (existingUser) {
+        reject({ status: 409, msg: 'Username already exists' });
+        return;
+      }
+
+      // Generate salt and hash password
+      const salt = crypto.randomBytes(16).toString('hex');
+      crypto.scrypt(password, salt, 32, (err, derivedKey) => {
+        if (err) {
+          reject({ status: 500, msg: 'Error hashing password' });
+          return;
+        }
+
+        const hashedPassword = derivedKey.toString('hex');
+
+        // Insert new user
+        this.db.run(
+          'INSERT INTO Users (Username, HashedPassword, Salt, IsAdmin) VALUES (?, ?, ?, 0)',
+          [username, hashedPassword, salt],
+          function(err) {
+            if (err) {
+              console.error('Error inserting user:', err);
+              reject({ status: 500, msg: 'Database error during registration' });
+              return;
+            }
+
+            // Return the new user object
+            resolve({
+              id: this.lastID,
+              username: username,
+              isAdmin: false
+            });
+          }
+        );
+      });
+    })
+    .catch(err => {
+      console.error('Error checking existing user:', err);
+      reject({ status: 500, msg: 'Database error' });
+    });
+});
 
 }
 module.exports = Database;
