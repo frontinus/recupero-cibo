@@ -73,40 +73,34 @@ function LoginForm(props) {
             <Row className="mt-4 g-4 justify-content-center">
               <Col xs={12} md={4}>
                 <Card className="text-center border-0 shadow-sm h-100 info-card">
-                  <Card.Body className="py-4 px-3">
+                  <Card.Body className="py-4 px-3" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                     <div className="text-primary mb-3" style={{ fontSize: '2.5rem' }}>
                       <i className="bi bi-shield-check"></i>
                     </div>
-                    <div className="info-card-content">
-                      <h6 className="mb-2 fw-semibold">Safe &amp; Secure</h6>
-                      <p className="text-muted small mb-0">Your data is protected</p>
-                    </div>
+                    <h6 className="mb-2 fw-semibold" style={{ whiteSpace: 'nowrap' }}>Safe &amp; Secure</h6>
+                    <p className="text-muted small mb-0" style={{ whiteSpace: 'normal', textAlign: 'center' }}>Your data is protected</p>
                   </Card.Body>
                 </Card>
               </Col>
               <Col xs={12} md={4}>
                 <Card className="text-center border-0 shadow-sm h-100 info-card">
-                  <Card.Body className="py-4 px-3">
+                  <Card.Body className="py-4 px-3" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                     <div className="text-success mb-3" style={{ fontSize: '2.5rem' }}>
                       <i className="bi bi-piggy-bank"></i>
                     </div>
-                    <div className="info-card-content">
-                      <h6 className="mb-2 fw-semibold">Save Money</h6>
-                      <p className="text-muted small mb-0">Up to 70% off retail</p>
-                    </div>
+                    <h6 className="mb-2 fw-semibold" style={{ whiteSpace: 'nowrap' }}>Save Money</h6>
+                    <p className="text-muted small mb-0" style={{ whiteSpace: 'normal', textAlign: 'center' }}>Up to 70% off retail</p>
                   </Card.Body>
                 </Card>
               </Col>
               <Col xs={12} md={4}>
                 <Card className="text-center border-0 shadow-sm h-100 info-card">
-                  <Card.Body className="py-4 px-3">
+                  <Card.Body className="py-4 px-3" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                     <div className="text-warning mb-3" style={{ fontSize: '2.5rem' }}>
                       <i className="bi bi-heart"></i>
                     </div>
-                    <div className="info-card-content">
-                      <h6 className="mb-2 fw-semibold">Help Planet</h6>
-                      <p className="text-muted small mb-0">Reduce food waste</p>
-                    </div>
+                    <h6 className="mb-2 fw-semibold" style={{ whiteSpace: 'nowrap' }}>Help Planet</h6>
+                    <p className="text-muted small mb-0" style={{ whiteSpace: 'normal', textAlign: 'center' }}>Reduce food waste</p>
                   </Card.Body>
                 </Card>
               </Col>

@@ -315,6 +315,151 @@ app.post(
   }
 );
 
+// Get available items (food catalog)
+app.get("/api/items", async (req, res) => {
+    try {
+        const items = await db.getAllItems();
+        res.json(items);
+    } catch (err) {
+        console.error("Error fetching items:", err);
+        res.status(500).json({ errors: ["Failed to fetch items"] });
+    }
+});
+
+// Create new food item (Admin only)
+app.post(
+    "/api/admin/items",
+    isLoggedIn,
+    isAdmin,
+    [
+        body("itemName", "Item name is required").notEmpty().trim().isString(),
+    ],
+    async (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array().map(e => e.msg) });
+        }
+
+        try {
+            const { itemName } = req.body;
+            const result = await db.createItem(itemName);
+            res.status(201).json({ id: result, message: "Item created successfully" });
+        } catch (err) {
+            console.error("Error creating item:", err);
+            if (err.message && err.message.includes('UNIQUE constraint')) {
+                res.status(409).json({ errors: ["Item already exists"] });
+            } else {
+                res.status(500).json({ errors: [err.message || "Failed to create item"] });
+            }
+        }
+    }
+);
+
+// Add item to box (Admin only)
+app.post(
+    "/api/admin/add-item-to-box",
+    isLoggedIn,
+    isAdmin,
+    [
+        body("boxId", "Box ID is required").isInt(),
+        body("itemName", "Item name is required").notEmpty().isString(),
+        body("quantity", "Quantity must be a positive number").isInt({ min: 1 }),
+    ],
+    async (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array().map(e => e.msg) });
+        }
+
+        try {
+            const { boxId, itemName, quantity } = req.body;
+            await db.addItemToBox(boxId, itemName, quantity);
+            res.status(200).json({ message: "Item added to box successfully" });
+        } catch (err) {
+            console.error("Error adding item to box:", err);
+            res.status(500).json({ errors: [err.message || "Failed to add item to box"] });
+        }
+    }
+);
+
+// Assign box to shop
+app.post(
+    "/api/admin/assign-box-shop",
+    isLoggedIn,
+    isAdmin,
+    [
+        body("boxId", "Box ID is required").isInt(),
+        body("shopId", "Shop ID is required").isInt(),
+    ],
+    async (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array().map(e => e.msg) });
+        }
+
+        try {
+            const { boxId, shopId } = req.body;
+            await db.addBoxToShop(boxId, shopId);
+            res.status(200).json({ message: "Box assigned to shop successfully" });
+        } catch (err) {
+            console.error("Error assigning box to shop:", err);
+            res.status(500).json({ errors: ["Failed to assign box to shop"] });
+        }
+    }
+);
+
+// Assign box to user (forcefully create purchase)
+app.post(
+    "/api/admin/assign-box-user",
+    isLoggedIn,
+    isAdmin,
+    [
+        body("boxId", "Box ID is required").isInt(),
+        body("username", "Username is required").notEmpty().isString(),
+    ],
+    async (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array().map(e => e.msg) });
+        }
+
+        try {
+            const { boxId, username } = req.body;
+            await db.assignBoxToUser(boxId, username);
+            res.status(200).json({ message: "Box assigned to user successfully" });
+        } catch (err) {
+            console.error("Error assigning box to user:", err);
+            res.status(500).json({ errors: [err.message || "Failed to assign box to user"] });
+        }
+    }
+);
+
+// Remove box from shop
+app.delete(
+    "/api/admin/remove-box-shop",
+    isLoggedIn,
+    isAdmin,
+    [
+        body("boxId", "Box ID is required").isInt(),
+        body("shopId", "Shop ID is required").isInt(),
+    ],
+    async (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array().map(e => e.msg) });
+        }
+
+        try {
+            const { boxId, shopId } = req.body;
+            await db.removeBoxFromShop(boxId, shopId);
+            res.status(200).json({ message: "Box removed from shop successfully" });
+        } catch (err) {
+            console.error("Error removing box from shop:", err);
+            res.status(500).json({ errors: ["Failed to remove box from shop"] });
+        }
+    }
+);
+
 app.listen(PORT, () => {
   console.log(`Server listening at http://localhost:${PORT}/`);
 });

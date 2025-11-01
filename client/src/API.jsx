@@ -130,6 +130,66 @@ const adminCreateBox = async (type, size, price, timeSpan) => await APICall(
   true
 );
 
+/**
+ * Assign a box to a shop (Admin only)
+ */
+const adminAssignBoxToShop = async (boxId, shopId) => await APICall(
+  "admin/assign-box-shop",
+  "POST",
+  JSON.stringify({ boxId, shopId }),
+  { "Content-Type": "application/json" },
+  true
+);
+
+/**
+ * Assign a box to a user (Admin only)
+ */
+const adminAssignBoxToUser = async (boxId, username) => await APICall(
+  "admin/assign-box-user",
+  "POST",
+  JSON.stringify({ boxId, username }),
+  { "Content-Type": "application/json" },
+  true
+);
+
+/**
+ * Remove a box from a shop (Admin only)
+ */
+const adminRemoveBoxFromShop = async (boxId, shopId) => await APICall(
+  "admin/remove-box-shop",
+  "DELETE",
+  JSON.stringify({ boxId, shopId }),
+  { "Content-Type": "application/json" },
+  true
+);
+
+/**
+ * Fetch available food items
+ */
+const fetchAvailableItems = async () => await APICall("items");
+
+/**
+ * Add an item to a box (Admin only)
+ */
+const adminAddItemToBox = async (boxId, itemName, quantity) => await APICall(
+  "admin/add-item-to-box",
+  "POST",
+  JSON.stringify({ boxId, itemName, quantity }),
+  { "Content-Type": "application/json" },
+  true
+);
+
+/**
+ * Create a new food item (Admin only)
+ */
+const adminCreateItem = async (itemName) => await APICall(
+  "admin/items",
+  "POST",
+  JSON.stringify({ itemName }),
+  { "Content-Type": "application/json" },
+  true
+);
+
 const API = {
   fetchBoxes,
   fetchBoxesByShop,
@@ -137,14 +197,20 @@ const API = {
   createPurchase,
   editPurchase,
   login,
-  register, // NEW: Add register function
+  register,
   logout,
   fetchCurrentUser,
   fetchShops,
   editContents,
   fetchBoxesByIds,
   adminCreateBox,
-  adminCreateShop
+  adminCreateShop,
+  adminAssignBoxToShop,
+  adminAssignBoxToUser,
+  adminRemoveBoxFromShop,
+  fetchAvailableItems,
+  adminAddItemToBox,
+  adminCreateItem
 };
 
 export { API };

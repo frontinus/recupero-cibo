@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Form, Button, Alert, Spinner, FloatingLabel } from 'react-bootstrap';
-import { API } from './API'; // Assuming API.jsx is in the same directory or adjust path
+import { Container, Row, Col, Card, Form, Button, Alert, Spinner, FloatingLabel, Table, Badge, Modal, Tabs, Tab } from 'react-bootstrap';
+import { API } from './API';
 
 function AdminPanel() {
     // State for creating a shop
@@ -10,17 +10,62 @@ function AdminPanel() {
     const [shopFoodType, setShopFoodType] = useState('');
 
     // State for creating a box
-    const [boxType, setBoxType] = useState('Normal'); // Default value
-    const [boxSize, setBoxSize] = useState('Medium'); // Default value
+    const [boxType, setBoxType] = useState('Normal');
+    const [boxSize, setBoxSize] = useState('Medium');
     const [boxPrice, setBoxPrice] = useState('');
-    const [boxTimeSpan, setBoxTimeSpan] = useState(''); // e.g., "18:00-19:00"
+    const [boxTimeSpan, setBoxTimeSpan] = useState('');
+    const [boxItems, setBoxItems] = useState([{ name: '', quantity: 1 }]); // NEW: For Normal box items
+
+    // State for creating an item
+    const [itemName, setItemName] = useState('');
+
+    // State for existing data
+    const [shops, setShops] = useState([]);
+    const [boxes, setBoxes] = useState([]);
+    const [users, setUsers] = useState([]);
+    const [availableItems, setAvailableItems] = useState([]); // NEW: Available food items
+
+    // State for assignment modals
+    const [showAssignBoxToShop, setShowAssignBoxToShop] = useState(false);
+    const [showAssignBoxToUser, setShowAssignBoxToUser] = useState(false);
+    const [selectedBox, setSelectedBox] = useState('');
+    const [selectedShop, setSelectedShop] = useState('');
+    const [selectedUser, setSelectedUser] = useState('');
 
     // General state
     const [loading, setLoading] = useState(false);
+    const [dataLoading, setDataLoading] = useState(true);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
-    // --- Handlers ---
+    // Load initial data
+    useEffect(() => {
+        loadData();
+    }, []);
+
+    const loadData = async () => {
+        setDataLoading(true);
+        try {
+            const [shopsData, boxesData, itemsData] = await Promise.all([
+                API.fetchShops(),
+                API.fetchBoxes(),
+                API.fetchAvailableItems() // NEW: Fetch available food items
+            ]);
+            setShops(shopsData);
+            setBoxes(boxesData);
+            setAvailableItems(itemsData);
+            setUsers([
+                { username: 'alice' },
+                { username: 'bob' },
+                { username: 'charlie' }
+            ]);
+        } catch (err) {
+            console.error('Error loading data:', err);
+            setError('Failed to load data');
+        } finally {
+            setDataLoading(false);
+        }
+    };
 
     const handleCreateShop = async (event) => {
         event.preventDefault();
@@ -28,7 +73,6 @@ function AdminPanel() {
         setSuccess('');
         setLoading(true);
 
-        // Basic validation (more can be added)
         if (!shopName || !shopAddress || !shopPhone || !shopFoodType) {
             setError('All shop fields are required.');
             setLoading(false);
@@ -38,14 +82,12 @@ function AdminPanel() {
         try {
             const result = await API.adminCreateShop(shopName, shopAddress, shopPhone, shopFoodType);
             setSuccess(`Shop "${shopName}" created successfully with ID: ${result.id}`);
-            // Clear form
             setShopName('');
             setShopAddress('');
             setShopPhone('');
             setShopFoodType('');
+            loadData();
         } catch (err) {
-            console.error("Error creating shop:", err);
-            // Assuming err is an array of error strings or similar
             const errorMsg = Array.isArray(err) ? err.join(', ') : String(err);
             setError(`Failed to create shop: ${errorMsg}`);
         } finally {
@@ -59,7 +101,6 @@ function AdminPanel() {
         setSuccess('');
         setLoading(true);
 
-        // Basic validation
         const priceNum = parseFloat(boxPrice);
         if (!boxType || !boxSize || !boxPrice || !boxTimeSpan || isNaN(priceNum) || priceNum <= 0) {
             setError('All box fields are required, and price must be a positive number.');
@@ -72,17 +113,37 @@ function AdminPanel() {
              return;
         }
 
+        // NEW: Validate items for Normal boxes
+        if (boxType === 'Normal') {
+            const validItems = boxItems.filter(item => item.name && item.quantity > 0);
+            if (validItems.length === 0) {
+                setError('Normal boxes must have at least one item.');
+                setLoading(false);
+                return;
+            }
+        }
 
         try {
+            // Create the box
             const result = await API.adminCreateBox(boxType, boxSize, priceNum, boxTimeSpan);
-            setSuccess(`Box created successfully with ID: ${result.id}. Remember to assign it to a shop.`);
-            // Clear form
+            const newBoxId = result.id;
+
+            // NEW: If Normal box, add items
+            if (boxType === 'Normal') {
+                const validItems = boxItems.filter(item => item.name && item.quantity > 0);
+                for (const item of validItems) {
+                    await API.adminAddItemToBox(newBoxId, item.name, item.quantity);
+                }
+            }
+
+            setSuccess(`Box created successfully with ID: ${newBoxId}`);
             setBoxType('Normal');
             setBoxSize('Medium');
             setBoxPrice('');
             setBoxTimeSpan('');
+            setBoxItems([{ name: '', quantity: 1 }]); // Reset items
+            loadData();
         } catch (err) {
-            console.error("Error creating box:", err);
             const errorMsg = Array.isArray(err) ? err.join(', ') : String(err);
             setError(`Failed to create box: ${errorMsg}`);
         } finally {
@@ -90,83 +151,480 @@ function AdminPanel() {
         }
     };
 
+    // NEW: Handle adding item row
+    const handleAddItem = () => {
+        setBoxItems([...boxItems, { name: '', quantity: 1 }]);
+    };
+
+    // NEW: Handle removing item row
+    const handleRemoveItem = (index) => {
+        const newItems = boxItems.filter((_, i) => i !== index);
+        setBoxItems(newItems.length > 0 ? newItems : [{ name: '', quantity: 1 }]);
+    };
+
+    // NEW: Handle item change
+    const handleItemChange = (index, field, value) => {
+        const newItems = [...boxItems];
+        newItems[index][field] = value;
+        setBoxItems(newItems);
+    };
+
+    const handleCreateItem = async (event) => {
+        event.preventDefault();
+        setError('');
+        setSuccess('');
+        setLoading(true);
+
+        if (!itemName || itemName.trim().length === 0) {
+            setError('Item name is required.');
+            setLoading(false);
+            return;
+        }
+
+        try {
+            const result = await API.adminCreateItem(itemName.trim());
+            setSuccess(`Item "${itemName}" created successfully!`);
+            setItemName('');
+            loadData(); // Reload to get new item in dropdown
+        } catch (err) {
+            const errorMsg = Array.isArray(err) ? err.join(', ') : String(err);
+            setError(`Failed to create item: ${errorMsg}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleAssignBoxToShop = async () => {
+        setError('');
+        setSuccess('');
+        setLoading(true);
+
+        try {
+            await API.adminAssignBoxToShop(parseInt(selectedBox), parseInt(selectedShop));
+            setSuccess(`Box ${selectedBox} assigned to shop successfully`);
+            setShowAssignBoxToShop(false);
+            setSelectedBox('');
+            setSelectedShop('');
+            loadData();
+        } catch (err) {
+            const errorMsg = Array.isArray(err) ? err.join(', ') : String(err);
+            setError(`Failed to assign box: ${errorMsg}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleAssignBoxToUser = async () => {
+        setError('');
+        setSuccess('');
+        setLoading(true);
+
+        try {
+            await API.adminAssignBoxToUser(parseInt(selectedBox), selectedUser);
+            setSuccess(`Box ${selectedBox} assigned to user ${selectedUser}`);
+            setShowAssignBoxToUser(false);
+            setSelectedBox('');
+            setSelectedUser('');
+            loadData();
+        } catch (err) {
+            const errorMsg = Array.isArray(err) ? err.join(', ') : String(err);
+            setError(`Failed to assign box: ${errorMsg}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleRemoveBoxFromShop = async (boxId, shopId) => {
+        if (!window.confirm('Remove this box from the shop?')) return;
+        
+        setError('');
+        setSuccess('');
+        setLoading(true);
+
+        try {
+            await API.adminRemoveBoxFromShop(boxId, shopId);
+            setSuccess(`Box removed from shop successfully`);
+            loadData();
+        } catch (err) {
+            const errorMsg = Array.isArray(err) ? err.join(', ') : String(err);
+            setError(`Failed to remove box: ${errorMsg}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (dataLoading) {
+        return (
+            <Container className="text-center mt-5">
+                <Spinner animation="border" variant="primary" />
+                <p className="mt-3">Loading admin panel...</p>
+            </Container>
+        );
+    }
+
     return (
         <Container style={{ marginTop: '6rem' }}>
-            <h1 className="mb-4">Admin Panel</h1>
+            <div className="mb-4">
+                <h1>
+                    <i className="bi bi-shield-lock-fill me-2 text-primary"></i>
+                    Admin Panel
+                </h1>
+                <p className="text-muted">Manage shops, boxes, and assignments</p>
+            </div>
 
-            {/* General Feedback Area */}
             {error && <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert>}
             {success && <Alert variant="success" onClose={() => setSuccess('')} dismissible>{success}</Alert>}
 
-            <Row xs={1} md={2} className="g-4"> {/* Use grid layout for cards */}
-                {/* --- Create Shop Card --- */}
-                <Col>
-                    <Card>
-                        <Card.Header as="h5">Create New Shop</Card.Header>
-                        <Card.Body>
-                            <Form onSubmit={handleCreateShop}>
-                                <FloatingLabel controlId="shopName" label="Shop Name" className="mb-3">
-                                    <Form.Control type="text" placeholder="Enter shop name" value={shopName} onChange={e => setShopName(e.target.value)} required />
-                                </FloatingLabel>
-                                <FloatingLabel controlId="shopAddress" label="Address" className="mb-3">
-                                    <Form.Control type="text" placeholder="Enter address" value={shopAddress} onChange={e => setShopAddress(e.target.value)} required />
-                                </FloatingLabel>
-                                <FloatingLabel controlId="shopPhone" label="Phone Number" className="mb-3">
-                                    <Form.Control type="tel" placeholder="Enter phone number" value={shopPhone} onChange={e => setShopPhone(e.target.value)} required />
-                                </FloatingLabel>
-                                <FloatingLabel controlId="shopFoodType" label="Food Type/Category" className="mb-3">
-                                    <Form.Control type="text" placeholder="e.g., General, Piedmontese, Bakery" value={shopFoodType} onChange={e => setShopFoodType(e.target.value)} required />
-                                </FloatingLabel>
-                                <Button variant="primary" type="submit" disabled={loading}>
-                                    {loading ? <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> : 'Create Shop'}
-                                </Button>
-                            </Form>
-                        </Card.Body>
-                    </Card>
-                </Col>
+            <Tabs defaultActiveKey="create" className="mb-4">
+                {/* CREATE TAB */}
+                <Tab eventKey="create" title={<span><i className="bi bi-plus-circle me-2"></i>Create New</span>}>
+                    <Row className="g-4 mt-2">
+                        <Col md={6}>
+                            <Card className="shadow-sm h-100">
+                                <Card.Header as="h5" className="bg-primary text-white">
+                                    <i className="bi bi-shop me-2"></i>Create New Shop
+                                </Card.Header>
+                                <Card.Body>
+                                    <Form onSubmit={handleCreateShop}>
+                                        <FloatingLabel controlId="shopName" label="Shop Name" className="mb-3">
+                                            <Form.Control type="text" placeholder="Enter shop name" value={shopName} onChange={e => setShopName(e.target.value)} required />
+                                        </FloatingLabel>
+                                        <FloatingLabel controlId="shopAddress" label="Address" className="mb-3">
+                                            <Form.Control type="text" placeholder="Enter address" value={shopAddress} onChange={e => setShopAddress(e.target.value)} required />
+                                        </FloatingLabel>
+                                        <FloatingLabel controlId="shopPhone" label="Phone Number" className="mb-3">
+                                            <Form.Control type="tel" placeholder="Enter phone number" value={shopPhone} onChange={e => setShopPhone(e.target.value)} required />
+                                        </FloatingLabel>
+                                        <FloatingLabel controlId="shopFoodType" label="Food Type" className="mb-3">
+                                            <Form.Control type="text" placeholder="e.g., Italian" value={shopFoodType} onChange={e => setShopFoodType(e.target.value)} required />
+                                        </FloatingLabel>
+                                        <Button variant="primary" type="submit" disabled={loading} className="w-100">
+                                            {loading ? <><Spinner as="span" animation="border" size="sm" /> Creating...</> : <><i className="bi bi-plus-lg me-2"></i>Create Shop</>}
+                                        </Button>
+                                    </Form>
+                                </Card.Body>
+                            </Card>
+                        </Col>
 
-                {/* --- Create Box Card --- */}
-                <Col>
-                    <Card>
-                        <Card.Header as="h5">Create New Box</Card.Header>
-                        <Card.Body>
-                            <Form onSubmit={handleCreateBox}>
-                                <Form.Group className="mb-3" controlId="boxType">
-                                    <Form.Label>Type</Form.Label>
-                                    <Form.Select value={boxType} onChange={e => setBoxType(e.target.value)}>
-                                        <option value="Normal">Normal</option>
-                                        <option value="Surprise">Surprise</option>
-                                    </Form.Select>
-                                </Form.Group>
-                                <Form.Group className="mb-3" controlId="boxSize">
-                                    <Form.Label>Size</Form.Label>
-                                    <Form.Select value={boxSize} onChange={e => setBoxSize(e.target.value)}>
-                                        <option value="Small">Small</option>
-                                        <option value="Medium">Medium</option>
-                                        <option value="Large">Large</option>
-                                    </Form.Select>
-                                </Form.Group>
-                                <FloatingLabel controlId="boxPrice" label="Price ($)" className="mb-3">
-                                    <Form.Control type="number" step="0.01" min="0.01" placeholder="Enter price" value={boxPrice} onChange={e => setBoxPrice(e.target.value)} required />
-                                </FloatingLabel>
-                                <FloatingLabel controlId="boxTimeSpan" label="Retrieval Time (HH:MM-HH:MM)" className="mb-3">
-                                    <Form.Control type="text" pattern="\d{2}:\d{2}-\d{2}:\d{2}" placeholder="e.g., 18:00-19:00" value={boxTimeSpan} onChange={e => setBoxTimeSpan(e.target.value)} required />
-                                    <Form.Text muted> Use 24-hour format. </Form.Text>
-                                </FloatingLabel>
-                                <Button variant="primary" type="submit" disabled={loading}>
-                                    {loading ? <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> : 'Create Box'}
-                                </Button>
-                            </Form>
-                        </Card.Body>
-                    </Card>
-                </Col>
+                        <Col md={6}>
+                            <Card className="shadow-sm h-100">
+                                <Card.Header as="h5" className="bg-success text-white">
+                                    <i className="bi bi-box-seam me-2"></i>Create New Box
+                                </Card.Header>
+                                <Card.Body style={{ maxHeight: '600px', overflowY: 'auto' }}>
+                                    <Form onSubmit={handleCreateBox}>
+                                        <Form.Group className="mb-3">
+                                            <Form.Label>Type</Form.Label>
+                                            <Form.Select value={boxType} onChange={e => { setBoxType(e.target.value); setBoxItems([{ name: '', quantity: 1 }]); }}>
+                                                <option value="Normal">Normal</option>
+                                                <option value="Surprise">Surprise</option>
+                                            </Form.Select>
+                                        </Form.Group>
+                                        <Form.Group className="mb-3">
+                                            <Form.Label>Size</Form.Label>
+                                            <Form.Select value={boxSize} onChange={e => setBoxSize(e.target.value)}>
+                                                <option value="Small">Small</option>
+                                                <option value="Medium">Medium</option>
+                                                <option value="Large">Large</option>
+                                            </Form.Select>
+                                        </Form.Group>
+                                        <FloatingLabel controlId="boxPrice" label="Price ($)" className="mb-3">
+                                            <Form.Control type="number" step="0.01" min="0.01" placeholder="Enter price" value={boxPrice} onChange={e => setBoxPrice(e.target.value)} required />
+                                        </FloatingLabel>
+                                        <FloatingLabel controlId="boxTimeSpan" label="Time (HH:MM-HH:MM)" className="mb-3">
+                                            <Form.Control type="text" pattern="\d{2}:\d{2}-\d{2}:\d{2}" placeholder="18:00-19:00" value={boxTimeSpan} onChange={e => setBoxTimeSpan(e.target.value)} required />
+                                        </FloatingLabel>
 
-                {/* --- Add More Cards/Sections Here --- */}
-                {/* e.g., Add Item to Box, Assign Box to Shop, etc. */}
+                                        {/* NEW: Items section for Normal boxes */}
+                                        {boxType === 'Normal' && (
+                                            <div className="mb-3 p-3 border rounded bg-light">
+                                                <div className="d-flex justify-content-between align-items-center mb-2">
+                                                    <Form.Label className="mb-0 fw-bold">
+                                                        <i className="bi bi-list-ul me-2"></i>
+                                                        Box Contents
+                                                    </Form.Label>
+                                                    <Button size="sm" variant="outline-success" onClick={handleAddItem}>
+                                                        <i className="bi bi-plus-lg"></i>
+                                                    </Button>
+                                                </div>
+                                                {boxItems.map((item, index) => (
+                                                    <Row key={index} className="mb-2 align-items-center">
+                                                        <Col xs={6}>
+                                                            <Form.Select
+                                                                size="sm"
+                                                                value={item.name}
+                                                                onChange={e => handleItemChange(index, 'name', e.target.value)}
+                                                                required
+                                                            >
+                                                                <option value="">Select item...</option>
+                                                                {availableItems.map(availItem => (
+                                                                    <option key={availItem.Name} value={availItem.Name}>
+                                                                        {availItem.Name}
+                                                                    </option>
+                                                                ))}
+                                                            </Form.Select>
+                                                        </Col>
+                                                        <Col xs={4}>
+                                                            <Form.Control
+                                                                type="number"
+                                                                size="sm"
+                                                                min="1"
+                                                                placeholder="Qty"
+                                                                value={item.quantity}
+                                                                onChange={e => handleItemChange(index, 'quantity', parseInt(e.target.value) || 1)}
+                                                                required
+                                                            />
+                                                        </Col>
+                                                        <Col xs={2}>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline-danger"
+                                                                onClick={() => handleRemoveItem(index)}
+                                                                disabled={boxItems.length === 1}
+                                                            >
+                                                                <i className="bi bi-trash"></i>
+                                                            </Button>
+                                                        </Col>
+                                                    </Row>
+                                                ))}
+                                                <small className="text-muted">
+                                                    <i className="bi bi-info-circle me-1"></i>
+                                                    Add items that will be in this bag
+                                                </small>
+                                            </div>
+                                        )}
 
-            </Row>
+                                        {boxType === 'Surprise' && (
+                                            <Alert variant="info" className="mb-3">
+                                                <i className="bi bi-gift me-2"></i>
+                                                Surprise bags don't show contents to users
+                                            </Alert>
+                                        )}
+
+                                        <Button variant="success" type="submit" disabled={loading} className="w-100">
+                                            {loading ? <><Spinner as="span" animation="border" size="sm" /> Creating...</> : <><i className="bi bi-plus-lg me-2"></i>Create Box</>}
+                                        </Button>
+                                    </Form>
+                                </Card.Body>
+                            </Card>
+                        </Col>
+                    </Row>
+                </Tab>
+
+                {/* MANAGE TAB */}
+                <Tab eventKey="manage" title={<span><i className="bi bi-gear me-2"></i>Manage</span>}>
+                    <Row className="g-4 mt-2">
+                        <Col md={6}>
+                            <Card className="shadow-sm">
+                                <Card.Header className="bg-light">
+                                    <h5 className="mb-0"><i className="bi bi-shop me-2"></i>Shops ({shops.length})</h5>
+                                </Card.Header>
+                                <Card.Body style={{ maxHeight: '500px', overflowY: 'auto' }}>
+                                    <Table striped hover responsive>
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>Name</th>
+                                                <th>Type</th>
+                                                <th>Boxes</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {shops.map(shop => (
+                                                <tr key={shop.Shopid}>
+                                                    <td><Badge bg="secondary">{shop.Shopid}</Badge></td>
+                                                    <td><strong>{shop.ShopName}</strong></td>
+                                                    <td><Badge bg="info">{shop.Food_type}</Badge></td>
+                                                    <td><Badge bg="primary">{shop.Boxes?.length || 0}</Badge></td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </Table>
+                                </Card.Body>
+                            </Card>
+                        </Col>
+
+                        <Col md={6}>
+                            <Card className="shadow-sm">
+                                <Card.Header className="bg-light d-flex justify-content-between align-items-center">
+                                    <h5 className="mb-0"><i className="bi bi-box-seam me-2"></i>Boxes ({boxes.length})</h5>
+                                    <div>
+                                        <Button size="sm" variant="outline-primary" className="me-2" onClick={() => setShowAssignBoxToShop(true)}>
+                                            <i className="bi bi-shop me-1"></i>To Shop
+                                        </Button>
+                                        <Button size="sm" variant="outline-success" onClick={() => setShowAssignBoxToUser(true)}>
+                                            <i className="bi bi-person me-1"></i>To User
+                                        </Button>
+                                    </div>
+                                </Card.Header>
+                                <Card.Body style={{ maxHeight: '500px', overflowY: 'auto' }}>
+                                    <Table striped hover responsive size="sm">
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>Type</th>
+                                                <th>Size</th>
+                                                <th>Price</th>
+                                                <th>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {boxes.map(box => (
+                                                <tr key={box.ID}>
+                                                    <td><Badge bg="secondary">{box.ID}</Badge></td>
+                                                    <td>{box.Type}</td>
+                                                    <td><Badge bg="info">{box.Size}</Badge></td>
+                                                    <td>${box.Price}</td>
+                                                    <td>
+                                                        <Badge bg={box.Is_owned ? 'danger' : 'success'}>
+                                                            {box.Is_owned ? 'Reserved' : 'Available'}
+                                                        </Badge>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </Table>
+                                </Card.Body>
+                            </Card>
+                        </Col>
+                    </Row>
+                </Tab>
+
+                {/* ASSIGNMENTS TAB */}
+                <Tab eventKey="assignments" title={<span><i className="bi bi-diagram-3 me-2"></i>Assignments</span>}>
+                    <Row className="g-4 mt-2">
+                        <Col xs={12}>
+                            <Card className="shadow-sm">
+                                <Card.Header className="bg-light">
+                                    <h5 className="mb-0"><i className="bi bi-link-45deg me-2"></i>Box-Shop Assignments</h5>
+                                </Card.Header>
+                                <Card.Body style={{ maxHeight: '600px', overflowY: 'auto' }}>
+                                    <Table striped hover responsive>
+                                        <thead>
+                                            <tr>
+                                                <th>Shop</th>
+                                                <th>Box ID</th>
+                                                <th>Type</th>
+                                                <th>Size</th>
+                                                <th>Price</th>
+                                                <th>Status</th>
+                                                <th>Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {shops.flatMap(shop => 
+                                                shop.Boxes?.map(boxId => {
+                                                    const box = boxes.find(b => b.ID === boxId);
+                                                    if (!box) return null;
+                                                    return (
+                                                        <tr key={`${shop.Shopid}-${boxId}`}>
+                                                            <td><strong>{shop.ShopName}</strong></td>
+                                                            <td><Badge bg="secondary">{boxId}</Badge></td>
+                                                            <td>{box.Type}</td>
+                                                            <td><Badge bg="info">{box.Size}</Badge></td>
+                                                            <td>${box.Price}</td>
+                                                            <td>
+                                                                <Badge bg={box.Is_owned ? 'danger' : 'success'}>
+                                                                    {box.Is_owned ? 'Reserved' : 'Available'}
+                                                                </Badge>
+                                                            </td>
+                                                            <td>
+                                                                <Button 
+                                                                    size="sm" 
+                                                                    variant="outline-danger"
+                                                                    onClick={() => handleRemoveBoxFromShop(boxId, shop.Shopid)}
+                                                                    disabled={loading}
+                                                                >
+                                                                    <i className="bi bi-trash"></i>
+                                                                </Button>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                }).filter(Boolean)
+                                            )}
+                                        </tbody>
+                                    </Table>
+                                </Card.Body>
+                            </Card>
+                        </Col>
+                    </Row>
+                </Tab>
+            </Tabs>
+
+            {/* Modals */}
+            <Modal show={showAssignBoxToShop} onHide={() => setShowAssignBoxToShop(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title><i className="bi bi-shop me-2"></i>Assign Box to Shop</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Form.Group className="mb-3">
+                        <Form.Label>Select Box</Form.Label>
+                        <Form.Select value={selectedBox} onChange={e => setSelectedBox(e.target.value)}>
+                            <option value="">Choose a box...</option>
+                            {boxes.map(box => (
+                                <option key={box.ID} value={box.ID}>
+                                    Box {box.ID} - {box.Type} ({box.Size}) - ${box.Price}
+                                </option>
+                            ))}
+                        </Form.Select>
+                    </Form.Group>
+                    <Form.Group>
+                        <Form.Label>Select Shop</Form.Label>
+                        <Form.Select value={selectedShop} onChange={e => setSelectedShop(e.target.value)}>
+                            <option value="">Choose a shop...</option>
+                            {shops.map(shop => (
+                                <option key={shop.Shopid} value={shop.Shopid}>
+                                    {shop.ShopName} ({shop.Food_type})
+                                </option>
+                            ))}
+                        </Form.Select>
+                    </Form.Group>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowAssignBoxToShop(false)}>Cancel</Button>
+                    <Button variant="primary" onClick={handleAssignBoxToShop} disabled={!selectedBox || !selectedShop || loading}>
+                        {loading ? <Spinner as="span" animation="border" size="sm" /> : 'Assign'}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            <Modal show={showAssignBoxToUser} onHide={() => setShowAssignBoxToUser(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title><i className="bi bi-person me-2"></i>Assign Box to User</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Form.Group className="mb-3">
+                        <Form.Label>Select Box</Form.Label>
+                        <Form.Select value={selectedBox} onChange={e => setSelectedBox(e.target.value)}>
+                            <option value="">Choose a box...</option>
+                            {boxes.filter(box => !box.Is_owned).map(box => (
+                                <option key={box.ID} value={box.ID}>
+                                    Box {box.ID} - {box.Type} ({box.Size}) - ${box.Price}
+                                </option>
+                            ))}
+                        </Form.Select>
+                    </Form.Group>
+                    <Form.Group>
+                        <Form.Label>Select User</Form.Label>
+                        <Form.Select value={selectedUser} onChange={e => setSelectedUser(e.target.value)}>
+                            <option value="">Choose a user...</option>
+                            {users.map(user => (
+                                <option key={user.username} value={user.username}>
+                                    {user.username}
+                                </option>
+                            ))}
+                        </Form.Select>
+                    </Form.Group>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowAssignBoxToUser(false)}>Cancel</Button>
+                    <Button variant="success" onClick={handleAssignBoxToUser} disabled={!selectedBox || !selectedUser || loading}>
+                        {loading ? <Spinner as="span" animation="border" size="sm" /> : 'Assign'}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
         </Container>
     );
 }
 
-export default AdminPanel; // Export as default
+export default AdminPanel;

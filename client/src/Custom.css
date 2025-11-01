@@ -1,5 +1,65 @@
 /* Custom styles for Food Rescue Connect */
 
+/* Logged-in shops view */
+.logged-in-shops-view {
+  animation: fadeIn 0.3s ease-in;
+}
+
+.logged-in-shops-view h3 {
+  font-weight: 600;
+  color: #2d3748;
+}
+
+/* Shops list container */
+.shops-list-container {
+  position: sticky;
+  top: 1rem;
+}
+
+.shops-list-container .list-group-item:hover {
+  transform: translateX(5px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.shops-list-container .list-group-item.active {
+  border-left: 4px solid #764ba2;
+}
+
+/* Custom scrollbar for shops list */
+.shops-list-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.shops-list-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.shops-list-container::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.shops-list-container::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Shop details animations */
+.shop-details-container {
+  animation: slideInRight 0.3s ease-out;
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 /* Smooth transitions for interactive elements */
 .hover-card {
   transition: transform 0.3s ease, box-shadow 0.3s ease;

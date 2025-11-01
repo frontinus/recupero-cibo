@@ -636,23 +636,25 @@ this.getBoxesByShopId = async (shopId) => {
     });
   };
 
-  /**
-   * Creates a new box.
-   * @returns {Promise<number>} Promise resolving to the ID of the newly created box.
-   */
-  this.createBox = async (type, size, price, timeSpan) => {
+/**
+ * Creates a new box - FIXED VERSION
+ * @returns {Promise<number>} Promise resolving to the ID of the newly created box.
+ */
+this.createBox = async (type, size, price, timeSpan) => {
      return new Promise((resolve, reject) => {
-        // Assume Is_owned defaults to FALSE (0) in the DB or set it explicitly
+        // Don't specify ID - let it auto-increment
         const sql = 'INSERT INTO Boxes(Type, Size, Price, Retrieve_time_span, Is_owned) VALUES(?, ?, ?, ?, 0)';
         this.db.run(sql, [type, size, price, timeSpan], function(err) {
             if (err) {
+                console.error('Error creating box:', err);
                 reject(err);
             } else {
-                resolve(this.lastID); // Use the auto-generated ID if Boxes.ID is AUTOINCREMENT PRIMARY KEY
+                console.log('Box created with ID:', this.lastID);
+                resolve(this.lastID);
             }
         });
      });
-  };
+};
 
    /**
    * Creates a new food item type (if you add an Items table).
@@ -815,6 +817,126 @@ this.registerUser = (username, password) => new Promise((resolve, reject) => {
       reject({ status: 500, msg: 'Database error' });
     });
 });
+
+/**
+ * Get all available food items from Contents table
+ */
+this.getAllItems = async () => {
+    const sql = 'SELECT * FROM Contents ORDER BY Name';
+    return dbAllAsync(this.db, sql);
+};
+
+/**
+ * Create a new food item
+ */
+this.createItem = async (itemName) => {
+    return new Promise((resolve, reject) => {
+        const sql = 'INSERT INTO Contents(Name) VALUES(?)';
+        this.db.run(sql, [itemName], function(err) {
+            if (err) {
+                console.error('Error creating item:', err);
+                reject(err);
+            } else {
+                console.log('Item created with ID:', this.lastID);
+                resolve(this.lastID);
+            }
+        });
+    });
+};
+
+/**
+ * Remove a box from a shop
+ */
+this.removeBoxFromShop = async (boxId, shopId) => {
+    const sql = 'DELETE FROM Boxinshop WHERE Box_id = ? AND Shop_id = ?';
+    return dbRunAsync(this.db, sql, [boxId, shopId]);
+};
+
+// Note: addBoxToShop and assignBoxToUser already exist in your database.js file
+// But here's an enhanced version with better error handling:
+
+/**
+ * Add a box to a shop (enhanced with checks)
+ */
+this.addBoxToShop = async (boxId, shopId) => {
+    // Check if box exists
+    const box = await dbGetAsync(this.db, "SELECT ID FROM Boxes WHERE ID = ?", [boxId]);
+    if (!box) {
+        throw new Error(`Box with ID ${boxId} does not exist`);
+    }
+
+    // Check if shop exists
+    const shop = await dbGetAsync(this.db, "SELECT Shopid FROM Shops WHERE Shopid = ?", [shopId]);
+    if (!shop) {
+        throw new Error(`Shop with ID ${shopId} does not exist`);
+    }
+
+    // Check if assignment already exists
+    const existing = await dbGetAsync(
+        this.db,
+        "SELECT * FROM Boxinshop WHERE Box_id = ? AND Shop_id = ?",
+        [boxId, shopId]
+    );
+    if (existing) {
+        throw new Error(`Box ${boxId} is already assigned to shop ${shopId}`);
+    }
+
+    // Create the assignment
+    const sql = 'INSERT INTO Boxinshop(Box_id, Shop_id) VALUES (?, ?)';
+    return dbRunAsync(this.db, sql, [boxId, shopId]);
+};
+
+/**
+ * Assign a box to a user (enhanced with checks)
+ */
+this.assignBoxToUser = async (boxId, username) => {
+    await dbBeginTransaction(this.db);
+    try {
+        // Check if box exists
+        const box = await dbGetAsync(this.db, "SELECT ID, Is_owned FROM Boxes WHERE ID = ?", [boxId]);
+        if (!box) {
+            throw new Error(`Box with ID ${boxId} does not exist`);
+        }
+        if (box.Is_owned) {
+            throw new Error(`Box ${boxId} is already owned by someone else`);
+        }
+
+        // Check if user exists
+        const user = await dbGetAsync(this.db, "SELECT Username FROM Users WHERE Username = ?", [username]);
+        if (!user) {
+            throw new Error(`User ${username} does not exist`);
+        }
+
+        // Check if user already has this box
+        const existing = await dbGetAsync(
+            this.db,
+            "SELECT * FROM Purchases WHERE Username = ? AND Box_id = ?",
+            [username, boxId]
+        );
+        if (existing) {
+            throw new Error(`User ${username} already has box ${boxId}`);
+        }
+
+        // Create purchase
+        await dbRunAsync(
+            this.db,
+            "INSERT INTO Purchases(Username, Box_id) VALUES (?, ?)",
+            [username, boxId]
+        );
+
+        // Mark box as owned
+        await dbRunAsync(
+            this.db,
+            "UPDATE Boxes SET Is_owned = 1 WHERE ID = ?",
+            [boxId]
+        );
+
+        await dbCommit(this.db);
+    } catch (err) {
+        await dbRollback(this.db);
+        throw err;
+    }
+};
 
 }
 module.exports = Database;
