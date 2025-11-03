@@ -14,7 +14,7 @@ function AdminPanel() {
     const [boxSize, setBoxSize] = useState('Medium');
     const [boxPrice, setBoxPrice] = useState('');
     const [boxTimeSpan, setBoxTimeSpan] = useState('');
-    const [boxItems, setBoxItems] = useState([{ name: '', quantity: 1 }]); // NEW: For Normal box items
+    const [boxItems, setBoxItems] = useState([{ name: '', quantity: 1 }]);
 
     // State for creating an item
     const [itemName, setItemName] = useState('');
@@ -23,7 +23,7 @@ function AdminPanel() {
     const [shops, setShops] = useState([]);
     const [boxes, setBoxes] = useState([]);
     const [users, setUsers] = useState([]);
-    const [availableItems, setAvailableItems] = useState([]); // NEW: Available food items
+    const [availableItems, setAvailableItems] = useState([]);
 
     // State for assignment modals
     const [showAssignBoxToShop, setShowAssignBoxToShop] = useState(false);
@@ -49,8 +49,9 @@ function AdminPanel() {
             const [shopsData, boxesData, itemsData] = await Promise.all([
                 API.fetchShops(),
                 API.fetchBoxes(),
-                API.fetchAvailableItems() // NEW: Fetch available food items
+                API.fetchAvailableItems()
             ]);
+            console.log("HERE ARE THE ITEMS:", itemsData);
             setShops(shopsData);
             setBoxes(boxesData);
             setAvailableItems(itemsData);
@@ -113,7 +114,6 @@ function AdminPanel() {
              return;
         }
 
-        // NEW: Validate items for Normal boxes
         if (boxType === 'Normal') {
             const validItems = boxItems.filter(item => item.name && item.quantity > 0);
             if (validItems.length === 0) {
@@ -124,11 +124,9 @@ function AdminPanel() {
         }
 
         try {
-            // Create the box
             const result = await API.adminCreateBox(boxType, boxSize, priceNum, boxTimeSpan);
             const newBoxId = result.id;
 
-            // NEW: If Normal box, add items
             if (boxType === 'Normal') {
                 const validItems = boxItems.filter(item => item.name && item.quantity > 0);
                 for (const item of validItems) {
@@ -141,7 +139,7 @@ function AdminPanel() {
             setBoxSize('Medium');
             setBoxPrice('');
             setBoxTimeSpan('');
-            setBoxItems([{ name: '', quantity: 1 }]); // Reset items
+            setBoxItems([{ name: '', quantity: 1 }]);
             loadData();
         } catch (err) {
             const errorMsg = Array.isArray(err) ? err.join(', ') : String(err);
@@ -151,18 +149,15 @@ function AdminPanel() {
         }
     };
 
-    // NEW: Handle adding item row
     const handleAddItem = () => {
         setBoxItems([...boxItems, { name: '', quantity: 1 }]);
     };
 
-    // NEW: Handle removing item row
     const handleRemoveItem = (index) => {
         const newItems = boxItems.filter((_, i) => i !== index);
         setBoxItems(newItems.length > 0 ? newItems : [{ name: '', quantity: 1 }]);
     };
 
-    // NEW: Handle item change
     const handleItemChange = (index, field, value) => {
         const newItems = [...boxItems];
         newItems[index][field] = value;
@@ -185,7 +180,7 @@ function AdminPanel() {
             const result = await API.adminCreateItem(itemName.trim());
             setSuccess(`Item "${itemName}" created successfully!`);
             setItemName('');
-            loadData(); // Reload to get new item in dropdown
+            loadData();
         } catch (err) {
             const errorMsg = Array.isArray(err) ? err.join(', ') : String(err);
             setError(`Failed to create item: ${errorMsg}`);
@@ -276,10 +271,9 @@ function AdminPanel() {
             {success && <Alert variant="success" onClose={() => setSuccess('')} dismissible>{success}</Alert>}
 
             <Tabs defaultActiveKey="create" className="mb-4">
-                {/* CREATE TAB */}
                 <Tab eventKey="create" title={<span><i className="bi bi-plus-circle me-2"></i>Create New</span>}>
                     <Row className="g-4 mt-2">
-                        <Col md={6}>
+                        <Col md={4}>
                             <Card className="shadow-sm h-100">
                                 <Card.Header as="h5" className="bg-primary text-white">
                                     <i className="bi bi-shop me-2"></i>Create New Shop
@@ -306,7 +300,40 @@ function AdminPanel() {
                             </Card>
                         </Col>
 
-                        <Col md={6}>
+                        <Col md={4}>
+                            <Card className="shadow-sm h-100">
+                                <Card.Header as="h5" className="bg-warning text-dark">
+                                    <i className="bi bi-basket me-2"></i>Create New Item
+                                </Card.Header>
+                                <Card.Body>
+                                    <Form onSubmit={handleCreateItem}>
+                                        <FloatingLabel controlId="itemName" label="Item Name" className="mb-3">
+                                            <Form.Control 
+                                                type="text" 
+                                                placeholder="Enter item name" 
+                                                value={itemName} 
+                                                onChange={e => setItemName(e.target.value)} 
+                                                required 
+                                            />
+                                        </FloatingLabel>
+                                        <Button variant="warning" type="submit" disabled={loading} className="w-100">
+                                            {loading ? <><Spinner as="span" animation="border" size="sm" /> Creating...</> : <><i className="bi bi-plus-lg me-2"></i>Create Item</>}
+                                        </Button>
+                                        
+                                        {availableItems.length > 0 && (
+                                            <div className="mt-3">
+                                                <small className="text-muted">
+                                                    <i className="bi bi-info-circle me-1"></i>
+                                                    {availableItems.length} items available
+                                                </small>
+                                            </div>
+                                        )}
+                                    </Form>
+                                </Card.Body>
+                            </Card>
+                        </Col>
+
+                        <Col md={4}>
                             <Card className="shadow-sm h-100">
                                 <Card.Header as="h5" className="bg-success text-white">
                                     <i className="bi bi-box-seam me-2"></i>Create New Box
@@ -335,7 +362,6 @@ function AdminPanel() {
                                             <Form.Control type="text" pattern="\d{2}:\d{2}-\d{2}:\d{2}" placeholder="18:00-19:00" value={boxTimeSpan} onChange={e => setBoxTimeSpan(e.target.value)} required />
                                         </FloatingLabel>
 
-                                        {/* NEW: Items section for Normal boxes */}
                                         {boxType === 'Normal' && (
                                             <div className="mb-3 p-3 border rounded bg-light">
                                                 <div className="d-flex justify-content-between align-items-center mb-2">
@@ -357,11 +383,15 @@ function AdminPanel() {
                                                                 required
                                                             >
                                                                 <option value="">Select item...</option>
-                                                                {availableItems.map(availItem => (
-                                                                    <option key={availItem.Name} value={availItem.Name}>
-                                                                        {availItem.Name}
-                                                                    </option>
-                                                                ))}
+                                                                {availableItems && availableItems.length > 0 ? (
+                                                                    availableItems.map(availItem => (
+                                                                        <option key={availItem.NAME || availItem.Name} value={availItem.NAME || availItem.name}>
+                                                                            {availItem.NAME || availItem.name }
+                                                                        </option>
+                                                                    ))
+                                                                ) : (
+                                                                    <option value="" disabled>No items available - create items first</option>
+                                                                )}
                                                             </Form.Select>
                                                         </Col>
                                                         <Col xs={4}>
@@ -411,7 +441,6 @@ function AdminPanel() {
                     </Row>
                 </Tab>
 
-                {/* MANAGE TAB */}
                 <Tab eventKey="manage" title={<span><i className="bi bi-gear me-2"></i>Manage</span>}>
                     <Row className="g-4 mt-2">
                         <Col md={6}>
@@ -490,7 +519,6 @@ function AdminPanel() {
                     </Row>
                 </Tab>
 
-                {/* ASSIGNMENTS TAB */}
                 <Tab eventKey="assignments" title={<span><i className="bi bi-diagram-3 me-2"></i>Assignments</span>}>
                     <Row className="g-4 mt-2">
                         <Col xs={12}>
@@ -551,7 +579,6 @@ function AdminPanel() {
                 </Tab>
             </Tabs>
 
-            {/* Modals */}
             <Modal show={showAssignBoxToShop} onHide={() => setShowAssignBoxToShop(false)}>
                 <Modal.Header closeButton>
                     <Modal.Title><i className="bi bi-shop me-2"></i>Assign Box to Shop</Modal.Title>

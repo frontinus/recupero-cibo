@@ -666,7 +666,7 @@ this.createBox = async (type, size, price, timeSpan) => {
        // If just text, this function might not be needed.
        // Example assuming an 'Items' table:
        return new Promise((resolve, reject) => {
-          const sql = 'INSERT INTO Contents(Name) VALUES(?)'; // Use Contents table?
+          const sql = 'INSERT INTO Contents(NAME) VALUES(?)'; // Use Contents table?
           this.db.run(sql, [itemName], function(err) {
               if (err) reject(err);
               else resolve(this.lastID);
@@ -822,7 +822,7 @@ this.registerUser = (username, password) => new Promise((resolve, reject) => {
  * Get all available food items from Contents table
  */
 this.getAllItems = async () => {
-    const sql = 'SELECT * FROM Contents ORDER BY Name';
+    const sql = 'SELECT * FROM Contents ORDER BY NAME';
     return dbAllAsync(this.db, sql);
 };
 
@@ -831,7 +831,7 @@ this.getAllItems = async () => {
  */
 this.createItem = async (itemName) => {
     return new Promise((resolve, reject) => {
-        const sql = 'INSERT INTO Contents(Name) VALUES(?)';
+        const sql = 'INSERT INTO Contents(NAME) VALUES(?)';
         this.db.run(sql, [itemName], function(err) {
             if (err) {
                 console.error('Error creating item:', err);
