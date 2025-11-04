@@ -169,6 +169,11 @@ const adminRemoveBoxFromShop = async (boxId, shopId) => await APICall(
 const fetchAvailableItems = async () => await APICall("items");
 
 /**
+ * Fetch list of users
+ */
+const fetchUsers = async () => await APICall("admin/users");
+
+/**
  * Add an item to a box (Admin only)
  */
 const adminAddItemToBox = async (boxId, itemName, quantity) => await APICall(
@@ -190,6 +195,44 @@ const adminCreateItem = async (itemName) => await APICall(
   true
 );
 
+// Shop owner endpoints
+const fetchCurrentShop = async () => await APICall("shop/current");
+
+const fetchShopBoxes = async () => await APICall("shop/boxes");
+
+const createShopBox = async (type, size, price, timeSpan, items) => await APICall(
+    "shop/boxes",
+    "POST",
+    JSON.stringify({ type, size, price, timeSpan, items }),
+    { "Content-Type": "application/json" },
+    true
+);
+
+const deleteShopBox = async (boxId) => await APICall(
+    `shop/boxes/${boxId}`,
+    "DELETE",
+    undefined,
+    undefined,
+    false
+);
+
+const cancelShopPurchase = async (boxId) => await APICall(
+    `shop/purchases/${boxId}`,
+    "DELETE",
+    undefined,
+    undefined,
+    false
+);
+
+const adminCreateShopUser = async (shopId, username, password) => await APICall(
+    "admin/create-shop-user",
+    "POST",
+    JSON.stringify({ shopId, username, password }),
+    { "Content-Type": "application/json" },
+    true
+);
+
+
 const API = {
   fetchBoxes,
   fetchBoxesByShop,
@@ -210,7 +253,14 @@ const API = {
   adminRemoveBoxFromShop,
   fetchAvailableItems,
   adminAddItemToBox,
-  adminCreateItem
+  adminCreateItem,
+  fetchUsers,
+  fetchCurrentShop,
+  fetchShopBoxes,
+  createShopBox,
+  deleteShopBox,
+  cancelShopPurchase,
+  adminCreateShopUser
 };
 
 export { API };

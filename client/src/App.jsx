@@ -11,6 +11,7 @@ import { API } from './API';
 import { LoginForm } from './LoginForm';
 import { Purchases } from './Purchases';
 import AdminPanel from './AdminPanel';
+import ShopOwnerPanel from './ShopOwnerPanel';
 
 function App() {
   return (
@@ -338,6 +339,16 @@ function Main() {
           }
         />
       </Route>
+      <Route
+          path="shop-panel"
+          element={
+              loading ? <LoadingSpinner/> : (
+                user && user.shopId ? <ShopOwnerPanel /> : (
+                  user ? <Navigate to="/" /> : <Navigate to="/login" />
+                )
+              )
+          }
+      />
       <Route path="*" element={<NotFoundPage/>}/>
     </Routes>
   );

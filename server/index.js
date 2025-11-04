@@ -4,7 +4,7 @@ const Database = require("./database");
 const express = require("express");
 const cors = require("cors");
 const { body, validationResult } = require("express-validator");
-const { initAuthentication, isLoggedIn, isAdmin } = require("./authentication");
+const { initAuthentication, isLoggedIn, isAdmin, isShopOwner } = require("./authentication");
 const passport = require("passport");
 
 const PORT = 3001;
@@ -182,7 +182,7 @@ app.post(
             db.getPurchasesbyUser(user.username)
               .then(purchases =>  {
                 console.log(`POST /api/session: Found purchases for ${user.username}:`, purchases);
-                res.json({username: user.username, purchases, isAdmin: user.isAdmin})
+                res.json({username: user.username, purchases, isAdmin: user.isAdmin, shopId: user.shopId || null})
               })
               .catch(() => {
                 res.status(500).json({errors: ["Database error 2"]});
@@ -262,8 +262,8 @@ app.get("/api/session/current", isLoggedIn, async (req, res) => {
       res.status(500).json({errors: ["Database error 1"]});
       err = true;
     }));
-  
-  if (!err) res.json({username: req.user.username, purchases, isAdmin: req.user.isAdmin});
+
+  if (!err) res.json({username: req.user.username, purchases, isAdmin: req.user.isAdmin, shopId: req.user.shopId || null});
 });
 
 
@@ -323,6 +323,17 @@ app.get("/api/items", async (req, res) => {
     } catch (err) {
         console.error("Error fetching items:", err);
         res.status(500).json({ errors: ["Failed to fetch items"] });
+    }
+});
+
+// Get available users (Admin only)
+app.get("/api/admin/users", async (req, res) => {
+    try {
+        const items = await db.getAllUsers();
+        res.json(items);
+    } catch (err) {
+        console.error("Error fetching users:", err);
+        res.status(500).json({ errors: ["Failed to fetch users"] });
     }
 });
 
@@ -456,6 +467,148 @@ app.delete(
         } catch (err) {
             console.error("Error removing box from shop:", err);
             res.status(500).json({ errors: ["Failed to remove box from shop"] });
+        }
+    }
+);
+
+// Get current shop info for logged-in shop owner
+app.get("/api/shop/current", isLoggedIn, isShopOwner, async (req, res) => {
+    try {
+        const shop = await db.getShopByUserId(req.user.id);
+        if (!shop) {
+            return res.status(404).json({ errors: ["Shop not found"] });
+        }
+        res.json(shop);
+    } catch (err) {
+        console.error("Error fetching shop:", err);
+        res.status(500).json({ errors: ["Failed to fetch shop information"] });
+    }
+});
+
+
+// Get boxes for current shop
+app.get("/api/shop/boxes", isLoggedIn, isShopOwner, async (req, res) => {
+    try {
+        const boxes = await db.getBoxesByShopOwner(req.user.shopId);
+        res.json(boxes);
+    } catch (err) {
+        console.error("Error fetching shop boxes:", err);
+        res.status(500).json({ errors: ["Failed to fetch boxes"] });
+    }
+});
+
+// Create box for shop (shop owner only)
+app.post(
+    "/api/shop/boxes",
+    isLoggedIn,
+    isShopOwner,
+    [
+        body("type", "Box type is required (Normal/Surprise)").isIn(['Normal', 'Surprise']),
+        body("size", "Box size is required (Small/Medium/Large)").isIn(['Small', 'Medium', 'Large']),
+        body("price", "Price must be a positive number").isFloat({ gt: 0 }),
+        body("timeSpan", "Retrieval time span is required (e.g., 18:00-19:00)").matches(/^\d{2}:\d{2}-\d{2}:\d{2}$/),
+    ],
+    async (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array().map(e => e.msg) });
+        }
+
+        try {
+            const { type, size, price, timeSpan, items } = req.body;
+            
+            // Create box
+            const boxId = await db.createBox(type, size, price, timeSpan);
+            
+            // Add items if Normal box
+            if (type === 'Normal' && items && items.length > 0) {
+                for (const item of items) {
+                    await db.addItemToBox(boxId, item.name, item.quantity);
+                }
+            }
+            
+            // Automatically assign to shop
+            await db.addBoxToShop(boxId, req.user.shopId);
+            
+            res.status(201).json({ id: boxId, message: "Box created successfully" });
+        } catch (err) {
+            console.error("Error creating box for shop:", err);
+            res.status(500).json({ errors: ["Failed to create box"] });
+        }
+    }
+);
+
+// Delete box (shop owner only)
+app.delete(
+    "/api/shop/boxes/:boxId",
+    isLoggedIn,
+    isShopOwner,
+    async (req, res) => {
+        try {
+            const boxId = parseInt(req.params.boxId);
+            await db.deleteBoxByShopOwner(boxId, req.user.shopId);
+            res.json({ message: "Box deleted successfully" });
+        } catch (err) {
+            console.error("Error deleting box:", err);
+            if (err.message.includes("does not belong")) {
+                res.status(403).json({ errors: [err.message] });
+            } else if (err.message.includes("active purchases")) {
+                res.status(400).json({ errors: [err.message] });
+            } else {
+                res.status(500).json({ errors: ["Failed to delete box"] });
+            }
+        }
+    }
+);
+
+// Cancel purchase (shop owner only)
+app.delete(
+    "/api/shop/purchases/:boxId",
+    isLoggedIn,
+    isShopOwner,
+    async (req, res) => {
+        try {
+            const boxId = parseInt(req.params.boxId);
+            await db.cancelPurchaseByShopOwner(boxId, req.user.shopId);
+            res.json({ message: "Purchase cancelled successfully" });
+        } catch (err) {
+            console.error("Error cancelling purchase:", err);
+            if (err.message.includes("does not belong")) {
+                res.status(403).json({ errors: [err.message] });
+            } else {
+                res.status(500).json({ errors: ["Failed to cancel purchase"] });
+            }
+        }
+    }
+);
+
+// Admin endpoint to create shop user account
+app.post(
+    "/api/admin/create-shop-user",
+    isLoggedIn,
+    isAdmin,
+    [
+        body("shopId", "Shop ID is required").isInt(),
+        body("username", "Username is required").notEmpty().trim(),
+        body("password", "Password must be at least 6 characters").isLength({ min: 6 }),
+    ],
+    async (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array().map(e => e.msg) });
+        }
+
+        try {
+            const { shopId, username, password } = req.body;
+            const user = await db.createShopUser(username, password, shopId);
+            res.status(201).json({ message: "Shop user created successfully", user });
+        } catch (err) {
+            console.error("Error creating shop user:", err);
+            if (err.status === 409) {
+                res.status(409).json({ errors: ["Username already exists"] });
+            } else {
+                res.status(500).json({ errors: ["Failed to create shop user"] });
+            }
         }
     }
 );

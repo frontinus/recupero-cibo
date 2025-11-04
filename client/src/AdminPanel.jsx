@@ -3,6 +3,12 @@ import { Container, Row, Col, Card, Form, Button, Alert, Spinner, FloatingLabel,
 import { API } from './API';
 
 function AdminPanel() {
+    // Add this state at the top with other states
+    const [showCreateShopUserModal, setShowCreateShopUserModal] = useState(false);
+    const [selectedShopForUser, setSelectedShopForUser] = useState('');
+    const [newShopUsername, setNewShopUsername] = useState('');
+    const [newShopPassword, setNewShopPassword] = useState('');
+
     // State for creating a shop
     const [shopName, setShopName] = useState('');
     const [shopAddress, setShopAddress] = useState('');
@@ -46,20 +52,16 @@ function AdminPanel() {
     const loadData = async () => {
         setDataLoading(true);
         try {
-            const [shopsData, boxesData, itemsData] = await Promise.all([
+            const [shopsData, boxesData, itemsData, usersData] = await Promise.all([
                 API.fetchShops(),
                 API.fetchBoxes(),
-                API.fetchAvailableItems()
+                API.fetchAvailableItems(),
+                API.fetchUsers()
             ]);
-            console.log("HERE ARE THE ITEMS:", itemsData);
             setShops(shopsData);
             setBoxes(boxesData);
             setAvailableItems(itemsData);
-            setUsers([
-                { username: 'alice' },
-                { username: 'bob' },
-                { username: 'charlie' }
-            ]);
+            setUsers(usersData);
         } catch (err) {
             console.error('Error loading data:', err);
             setError('Failed to load data');
@@ -248,6 +250,30 @@ function AdminPanel() {
         }
     };
 
+    const handleCreateShopUser = async () => {
+    setError('');
+    setSuccess('');
+    setLoading(true);
+
+    try {
+        await API.adminCreateShopUser(
+            parseInt(selectedShopForUser), 
+            newShopUsername, 
+            newShopPassword
+        );
+        setSuccess(`Shop user account created for ${newShopUsername}`);
+        setShowCreateShopUserModal(false);
+        setSelectedShopForUser('');
+        setNewShopUsername('');
+        setNewShopPassword('');
+    } catch (err) {
+        const errorMsg = Array.isArray(err) ? err.join(', ') : String(err);
+        setError(`Failed to create shop user: ${errorMsg}`);
+    } finally {
+        setLoading(false);
+    }
+};
+
     if (dataLoading) {
         return (
             <Container className="text-center mt-5">
@@ -385,8 +411,8 @@ function AdminPanel() {
                                                                 <option value="">Select item...</option>
                                                                 {availableItems && availableItems.length > 0 ? (
                                                                     availableItems.map(availItem => (
-                                                                        <option key={availItem.NAME || availItem.Name} value={availItem.NAME || availItem.name}>
-                                                                            {availItem.NAME || availItem.name }
+                                                                        <option key={availItem.NAME || availItem.name} value={availItem.NAME || availItem.name}>
+                                                                            {availItem.NAME || availItem.name}
                                                                         </option>
                                                                     ))
                                                                 ) : (
@@ -443,10 +469,13 @@ function AdminPanel() {
 
                 <Tab eventKey="manage" title={<span><i className="bi bi-gear me-2"></i>Manage</span>}>
                     <Row className="g-4 mt-2">
-                        <Col md={6}>
+                        <Col md={4}>
                             <Card className="shadow-sm">
-                                <Card.Header className="bg-light">
+                                <Card.Header className="bg-light d-flex justify-content-between align-items-center">
                                     <h5 className="mb-0"><i className="bi bi-shop me-2"></i>Shops ({shops.length})</h5>
+                                    <Button size="sm" variant="outline-success" onClick={() => setShowCreateShopUserModal(true)}>
+                                        <i className="bi bi-person-plus me-1"></i>Create Shop User
+                                    </Button>
                                 </Card.Header>
                                 <Card.Body style={{ maxHeight: '500px', overflowY: 'auto' }}>
                                     <Table striped hover responsive>
@@ -473,7 +502,7 @@ function AdminPanel() {
                             </Card>
                         </Col>
 
-                        <Col md={6}>
+                        <Col md={4}>
                             <Card className="shadow-sm">
                                 <Card.Header className="bg-light d-flex justify-content-between align-items-center">
                                     <h5 className="mb-0"><i className="bi bi-box-seam me-2"></i>Boxes ({boxes.length})</h5>
@@ -513,6 +542,41 @@ function AdminPanel() {
                                             ))}
                                         </tbody>
                                     </Table>
+                                </Card.Body>
+                            </Card>
+                        </Col>
+
+                        <Col md={4}>
+                            <Card className="shadow-sm">
+                                <Card.Header className="bg-light">
+                                    <h5 className="mb-0"><i className="bi bi-basket me-2"></i>Items ({availableItems.length})</h5>
+                                </Card.Header>
+                                <Card.Body style={{ maxHeight: '500px', overflowY: 'auto' }}>
+                                    {availableItems.length === 0 ? (
+                                        <div className="text-center text-muted py-4">
+                                            <i className="bi bi-inbox" style={{ fontSize: '2rem' }}></i>
+                                            <p className="mt-2">No items created yet</p>
+                                            <small>Go to "Create New" tab to add items</small>
+                                        </div>
+                                    ) : (
+                                        <Table striped hover responsive size="sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>Name</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {availableItems.map((item, index) => (
+                                                    <tr key={item.Name || item.NAME || index}>
+                                                        <td>
+                                                            <i className="bi bi-box me-2 text-muted"></i>
+                                                            {item.Name || item.NAME}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </Table>
+                                    )}
                                 </Card.Body>
                             </Card>
                         </Col>
@@ -636,8 +700,8 @@ function AdminPanel() {
                         <Form.Select value={selectedUser} onChange={e => setSelectedUser(e.target.value)}>
                             <option value="">Choose a user...</option>
                             {users.map(user => (
-                                <option key={user.username} value={user.username}>
-                                    {user.username}
+                                <option key={user.Username} value={user.Username}>
+                                    {user.Username}
                                 </option>
                             ))}
                         </Form.Select>
@@ -647,6 +711,54 @@ function AdminPanel() {
                     <Button variant="secondary" onClick={() => setShowAssignBoxToUser(false)}>Cancel</Button>
                     <Button variant="success" onClick={handleAssignBoxToUser} disabled={!selectedBox || !selectedUser || loading}>
                         {loading ? <Spinner as="span" animation="border" size="sm" /> : 'Assign'}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            <Modal show={showCreateShopUserModal} onHide={() => setShowCreateShopUserModal(false)}>
+                <Modal.Header closeButton>
+                    <Modal.Title>
+                        <i className="bi bi-person-plus me-2"></i>
+                            Create Shop User Account
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Form.Group className="mb-3">
+                        <Form.Label>Select Shop</Form.Label>
+                            <Form.Select 
+                                value={selectedShopForUser} 
+                                onChange={e => setSelectedShopForUser(e.target.value)}
+                            >
+                            <option value="">Choose a shop...</option>
+                            {shops.map(shop => (
+                                <option key={shop.Shopid} value={shop.Shopid}>
+                                    {shop.ShopName}
+                                </option>
+                            ))}
+                            </Form.Select>
+                        </Form.Group>
+        
+                        <Form.Group className="mb-3">
+                            <Form.Label>Username</Form.Label>
+                                <Form.Control type="text" placeholder="Enter username" value={newShopUsername} onChange={e => setNewShopUsername(e.target.value)}/>
+                        </Form.Group>
+        
+                        <Form.Group className="mb-3">
+                            <Form.Label>Password</Form.Label>
+                                <Form.Control type="password" placeholder="Enter password (min 6 characters)" value={newShopPassword} onChange={e => setNewShopPassword(e.target.value)}/>
+                        </Form.Group>
+        
+                        <Alert variant="info" className="mb-0">
+                            <i className="bi bi-info-circle me-2"></i>
+                                This will create a shop owner account that can manage only this shop's boxes.
+                        </Alert>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={() => setShowCreateShopUserModal(false)}>
+                        Cancel
+                    </Button>
+                    <Button variant="success" onClick={handleCreateShopUser} disabled={!selectedShopForUser || !newShopUsername || newShopPassword.length < 6 || loading}>
+                        {loading ? <Spinner as="span" animation="border" size="sm" /> : 'Create User'}
                     </Button>
                 </Modal.Footer>
             </Modal>

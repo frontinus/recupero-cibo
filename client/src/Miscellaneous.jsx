@@ -37,32 +37,36 @@ function MyNavbar(props) {
       <Navbar className="shadow" expand="lg" fixed="top" bg="light" style={{ marginBottom: "2rem" }}>
         <Container>
           <Navbar.Brand href="/" onClick={event => handleNavClick(event, "/")}>
-            <i className="bi bi-cake2 me-2"/> {/* Added margin */}
+            <i className="bi bi-cake2 me-2"/>
             Food Retrieving
           </Navbar.Brand>
-          <Navbar.Toggle aria-controls="basic-navbar-nav" /> {/* Added for responsiveness */}
+          <Navbar.Toggle aria-controls="basic-navbar-nav" />
           <Navbar.Collapse id="basic-navbar-nav">
-             {/* Use ms-auto to push Nav items to the right */}
             <Nav className="ms-auto align-items-center">
               {props.user ? (
-                // --- User is Logged In ---
                 <>
-                  {/* Show Admin Link if user is admin */}
+                  {/* Admin Panel Link */}
                   {props.user.isAdmin && (
                     <Nav.Link as={Link} to="/admin" onClick={(e) => handleNavClick(e, '/admin')}>
                        <i className="bi bi-shield-lock-fill me-1"/> Admin Panel
                     </Nav.Link>
                   )}
-                  {/* User Info and Logout */}
-                  <Navbar.Text className="ms-2"> {/* Added margin */}
+                  
+                  {/* Shop Owner Panel Link */}
+                  {props.user.shopId && !props.user.isAdmin && (
+                    <Nav.Link as={Link} to="/shop-panel" onClick={(e) => handleNavClick(e, '/shop-panel')}>
+                       <i className="bi bi-shop me-1"/> My Shop
+                    </Nav.Link>
+                  )}
+                  
+                  <Navbar.Text className="ms-2">
                     Logged in as: {props.user.username} | <a href="/logout" onClick={event => { event.preventDefault(); props.logoutCbk(); }}>Logout</a>
                   </Navbar.Text>
                 </>
               ) : (
-                // --- User is Logged Out ---
                 <Nav.Link href="/login" onClick={event => handleNavClick(event, "/login")}>
                   Login
-                  <i className="bi bi-person-fill ms-1"/> {/* Added margin */}
+                  <i className="bi bi-person-fill ms-1"/>
                 </Nav.Link>
               )}
             </Nav>

@@ -22,7 +22,7 @@ function initAuthentication(app, db) {
     // Serialization and deserialization of the user to and from a cookie
     passport.serializeUser((user, done) => {
         // Store id and isAdmin status
-        done(null, { id: user.id, isAdmin: user.isAdmin });
+        done(null, { id: user.id, isAdmin: user.isAdmin, shopId: user.shopId || null});
     });
 
     passport.deserializeUser((sessionData, done) => {
@@ -36,7 +36,8 @@ function initAuthentication(app, db) {
                         id: user.ID, 
                         username: user.Username.toLowerCase(), // Normalize to lowercase
                         Username: user.Username, // Keep original for backward compatibility
-                        isAdmin: user.isAdmin 
+                        isAdmin: user.isAdmin, 
+                        shopId: user.shopId || null
                     });
                 } else {
                     done({ status: 404, msg: 'User not found during deserialization' }, null);
@@ -78,4 +79,12 @@ function isAdmin(req, res, next) {
     return res.status(403).json({ errors: ['Forbidden: Administrator access required!'] });
 }
 
-module.exports = { initAuthentication, isLoggedIn, isAdmin };
+// Add middleware to check if user is a shop owner
+function isShopOwner(req, res, next) {
+    if (req.user && req.user.shopId) {
+        return next();
+    }
+    return res.status(403).json({ errors: ['Forbidden: Shop owner access required!'] });
+}
+
+module.exports = { initAuthentication, isLoggedIn, isAdmin, isShopOwner };

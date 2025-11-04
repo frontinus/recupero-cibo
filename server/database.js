@@ -417,7 +417,7 @@ this.editPurchase = async (boxesToAdd, boxesToRemove, userId, removedItems) => {
 
           if (crypto.timingSafeEqual(hash, Buffer.from(user.HashedPassword, "hex"))) {
             // Return user object including isAdmin
-            resolve({ id: user.ID, username: user.Username, isAdmin: user.IsAdmin === 1 }); // Convert 1/0 to boolean
+            resolve({ id: user.ID, username: user.Username, isAdmin: user.IsAdmin === 1, shopId: user.ShopId || null }); // Convert 1/0 to boolean
           } else {
             resolve(false);
           }
@@ -440,12 +440,13 @@ this.editPurchase = async (boxesToAdd, boxesToRemove, userId, removedItems) => {
       const user = await dbGetAsync(
         this.db,
         // Select isAdmin
-        "SELECT ID, Username, IsAdmin FROM Users WHERE ID = ? ",
+        "SELECT ID, Username, IsAdmin, ShopId FROM Users WHERE ID = ? ",
         [id]
       );
       // Convert isAdmin 1/0 to boolean if user found
       if (user) {
           user.isAdmin = user.IsAdmin === 1;
+          user.shopId = user.ShopId;
       }
       return user; // Return the user object (or undefined if not found)
   };
@@ -827,6 +828,14 @@ this.getAllItems = async () => {
 };
 
 /**
+ * Get all available users from Users table
+ */
+this.getAllUsers = async () => {
+    const sql = 'SELECT * FROM Users ORDER BY Username';
+    return dbAllAsync(this.db, sql);
+};
+
+/**
  * Create a new food item
  */
 this.createItem = async (itemName) => {
@@ -937,6 +946,159 @@ this.assignBoxToUser = async (boxId, username) => {
         throw err;
     }
 };
+
+this.getShopByUserId = async (userId) => {
+    const user = await dbGetAsync(
+        this.db,
+        "SELECT ShopId FROM Users WHERE ID = ?",
+        [userId]
+    );
+    if (user && user.ShopId) {
+        return await dbGetAsync(
+            this.db,
+            "SELECT * FROM Shops WHERE Shopid = ?",
+            [user.ShopId]
+        );
+    }
+    return null;
+};
+
+this.createShopUser = async (username, password, shopId) => {
+    return new Promise((resolve, reject) => {
+        // Check if username exists
+        dbGetAsync(this.db, "SELECT Username FROM Users WHERE Username = ?", [username])
+            .then(existingUser => {
+                if (existingUser) {
+                    reject({ status: 409, msg: 'Username already exists' });
+                    return;
+                }
+
+                const salt = crypto.randomBytes(16).toString('hex');
+                crypto.scrypt(password, salt, 32, (err, derivedKey) => {
+                    if (err) {
+                        reject({ status: 500, msg: 'Error hashing password' });
+                        return;
+                    }
+
+                    const hashedPassword = derivedKey.toString('hex');
+
+                    this.db.run(
+                        'INSERT INTO Users (Username, HashedPassword, Salt, IsAdmin, ShopId) VALUES (?, ?, ?, 0, ?)',
+                        [username, hashedPassword, salt, shopId],
+                        function(err) {
+                            if (err) {
+                                reject({ status: 500, msg: 'Database error during shop user creation' });
+                                return;
+                            }
+                            resolve({
+                                id: this.lastID,
+                                username: username,
+                                isAdmin: false,
+                                shopId: shopId
+                            });
+                        }
+                    );
+                });
+            })
+            .catch(err => reject({ status: 500, msg: 'Database error' }));
+    });
+};
+
+
+this.getBoxesByShopOwner = async (shopId) => {
+    const boxIds = (await dbAllAsync(
+        this.db,
+        "SELECT Box_id FROM Boxinshop WHERE Shop_id = ?",
+        [shopId]
+    )).map(c => c.Box_id);
+
+    if (boxIds.length === 0) return [];
+
+    const placeholders = boxIds.map(() => '?').join(',');
+    const boxes = (await dbAllAsync(
+        this.db,
+        `SELECT * FROM Boxes WHERE ID IN (${placeholders})`,
+        boxIds
+    )).map(c => ({...c, Contents: []}));
+
+    const contents = await dbAllAsync(
+        this.db,
+        `SELECT Box_id, content_name, quantity FROM Boxcontent WHERE Box_id IN (${placeholders})`,
+        boxIds
+    );
+
+    for (const {Box_id, content_name, quantity} of contents) {
+        const main = boxes.find(c => c.ID === Box_id);
+        if (main) {
+            main.Contents.push({name: content_name, quantity: quantity});
+        }
+    }
+
+    return boxes;
+};
+
+this.deleteBoxByShopOwner = async (boxId, shopId) => {
+    await dbBeginTransaction(this.db);
+    try {
+        // Check if box belongs to this shop
+        const boxInShop = await dbGetAsync(
+            this.db,
+            "SELECT * FROM Boxinshop WHERE Box_id = ? AND Shop_id = ?",
+            [boxId, shopId]
+        );
+        
+        if (!boxInShop) {
+            throw new Error("Box does not belong to this shop");
+        }
+
+        // Check if box is currently purchased
+        const purchases = await dbAllAsync(
+            this.db,
+            "SELECT * FROM Purchases WHERE Box_id = ?",
+            [boxId]
+        );
+
+        if (purchases.length > 0) {
+            throw new Error("Cannot delete box that has active purchases");
+        }
+
+        // Delete box contents, shop association, and box itself
+        await dbRunAsync(this.db, "DELETE FROM Boxcontent WHERE Box_id = ?", [boxId]);
+        await dbRunAsync(this.db, "DELETE FROM Boxinshop WHERE Box_id = ?", [boxId]);
+        await dbRunAsync(this.db, "DELETE FROM Boxes WHERE ID = ?", [boxId]);
+
+        await dbCommit(this.db);
+    } catch (err) {
+        await dbRollback(this.db);
+        throw err;
+    }
+};
+
+this.cancelPurchaseByShopOwner = async (boxId, shopId) => {
+    await dbBeginTransaction(this.db);
+    try {
+        // Verify box belongs to shop
+        const boxInShop = await dbGetAsync(
+            this.db,
+            "SELECT * FROM Boxinshop WHERE Box_id = ? AND Shop_id = ?",
+            [boxId, shopId]
+        );
+        
+        if (!boxInShop) {
+            throw new Error("Box does not belong to this shop");
+        }
+
+        // Delete purchase and mark box as not owned
+        await dbRunAsync(this.db, "DELETE FROM Purchases WHERE Box_id = ?", [boxId]);
+        await dbRunAsync(this.db, "UPDATE Boxes SET Is_owned = 0 WHERE ID = ?", [boxId]);
+
+        await dbCommit(this.db);
+    } catch (err) {
+        await dbRollback(this.db);
+        throw err;
+    }
+};
+
 
 }
 module.exports = Database;
