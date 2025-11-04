@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Form, Button, Alert, Spinner, FloatingLabel, Table, Badge, Modal } from 'react-bootstrap';
 import { API } from './API';
+import { useNavigate } from 'react-router-dom';
 
 function ShopOwnerPanel() {
+    const navigate = useNavigate(); // Add this line
     const [shop, setShop] = useState(null);
     const [boxes, setBoxes] = useState([]);
     const [availableItems, setAvailableItems] = useState([]);
@@ -158,11 +160,19 @@ function ShopOwnerPanel() {
     return (
         <Container style={{ marginTop: '6rem' }}>
             <div className="mb-4">
-                <h1>
-                    <i className="bi bi-shop me-2 text-primary"></i>
-                    {shop?.ShopName || 'Shop'} Management
-                </h1>
-                <p className="text-muted">Manage your boxes and reservations</p>
+                <div className="d-flex justify-content-between align-items-center">
+                    <div>    
+                        <h1>
+                            <i className="bi bi-shop me-2 text-primary"></i>
+                            {shop?.ShopName || 'Shop'} Management
+                        </h1>
+                        <p className="text-muted">Manage your boxes and reservations</p>
+                    </div>
+                    <Button variant="outline-primary" onClick={() => navigate('/')} className="d-flex align-items-center">
+                    <i className="bi bi-house-door me-2"></i>
+                    Back to Main
+                    </Button>
+                </div>    
             </div>
 
             {error && <Alert variant="danger" onClose={() => setError('')} dismissible>{error}</Alert>}
