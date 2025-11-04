@@ -22,7 +22,7 @@ Food Rescue Connect is a full-stack web application designed to combat food wast
 
 - **Customize Normal Bags**: Remove up to two individual food items from a "Normal Bag" before finalizing the reservation (price remains unchanged).
 
-- **Reservation Management**: 
+- **Reservation Management**:
   - Confirm cart contents to reserve bags with real-time availability verification.
   - If any bag becomes unavailable during checkout, the entire transaction is cancelled with clear feedback.
   - View and cancel confirmed reservations, making bags available again for other users.
@@ -92,12 +92,14 @@ Food Rescue Connect is a full-stack web application designed to combat food wast
 ### API Endpoints
 
 #### Authentication
+
 - `POST /api/session` - User login
 - `DELETE /api/session` - User logout
 - `GET /api/session/current` - Get current session
 - `POST /api/register` - Register new user
 
 #### Public/User Routes
+
 - `GET /api/shops` - Fetch all shops
 - `GET /api/boxes/:shopId` - Fetch boxes for a specific shop
 - `POST /api/boxes-by-ids` - Fetch specific boxes by IDs
@@ -107,6 +109,7 @@ Food Rescue Connect is a full-stack web application designed to combat food wast
 - `GET /api/items` - Get available food items
 
 #### Shop Owner Routes (Authenticated)
+
 - `GET /api/shop/current` - Get current shop information
 - `GET /api/shop/boxes` - Get boxes for current shop
 - `POST /api/shop/boxes` - Create new box for shop
@@ -114,6 +117,7 @@ Food Rescue Connect is a full-stack web application designed to combat food wast
 - `DELETE /api/shop/purchases/:boxId` - Cancel a reservation
 
 #### Admin Routes (Authenticated + Admin)
+
 - `POST /api/admin/shops` - Create new shop
 - `POST /api/admin/boxes` - Create new box
 - `POST /api/admin/items` - Create new food item
@@ -127,6 +131,7 @@ Food Rescue Connect is a full-stack web application designed to combat food wast
 ### Getting Started
 
 #### Prerequisites
+
 - Node.js (v14 or higher)
 - npm or yarn
 
@@ -135,8 +140,8 @@ Food Rescue Connect is a full-stack web application designed to combat food wast
 1. Clone the repository:
 
 ```bash
-git clone <your-repo-url>
-cd <your-project-dir>
+git clone <https://github.com/frontinus/recupero-cibo.git>
+cd <recuper-cibo>
 ```
 
 2. Install Server Dependencies:
@@ -176,7 +181,7 @@ Client will run on http://localhost:5173
 
 #### Default Test Accounts
 
-- **Regular Users**: alice, bob, charlie (password: `password`)
+- **Regular Users**: polpop (password: `polpop`) (also a shop owner)
 - **Admin**: admin (password: `admin`)
 - **Shop Owners**: Create via admin panel after setting up shops
 

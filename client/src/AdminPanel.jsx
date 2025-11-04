@@ -118,6 +118,8 @@ function AdminPanel() {
 
         if (boxType === 'Normal') {
             const validItems = boxItems.filter(item => item.name && item.quantity > 0);
+            console.log('Valid items for box creation:', validItems);
+            console.log('All box items:', boxItems);
             if (validItems.length === 0) {
                 setError('Normal boxes must have at least one item.');
                 setLoading(false);
